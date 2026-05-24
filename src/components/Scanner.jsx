@@ -56,24 +56,43 @@ export default function Scanner({ onClose, onSave }) {
     }
   };
 
-  const handleCapture = () => {
+  // Resize + compress image to max 1600px, JPEG quality 0.82
+  // Keeps text legible for Gemini while staying well under Vercel's 10MB limit
+  const compressImage = (dataUrl) => new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1600;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+        else { width = Math.round(width * MAX / height); height = MAX; }
+      }
+      const c = document.createElement('canvas');
+      c.width = width; c.height = height;
+      c.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(c.toDataURL('image/jpeg', 0.82).split(',')[1]);
+    };
+    img.src = dataUrl;
+  });
+
+  const handleCapture = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg');
-    processCapturedImage(dataUrl.split(',')[1], 'image/jpeg');
+    const base64 = await compressImage(canvas.toDataURL('image/jpeg'));
+    processCapturedImage(base64, 'image/jpeg');
   };
 
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      processCapturedImage(dataUrl.split(',')[1], file.type);
+    reader.onload = async () => {
+      const base64 = await compressImage(reader.result);
+      processCapturedImage(base64, 'image/jpeg');
     };
     reader.readAsDataURL(file);
     e.target.value = '';

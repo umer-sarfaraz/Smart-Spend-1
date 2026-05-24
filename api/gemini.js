@@ -1,3 +1,8 @@
+// Allow up to 10MB body — phone camera photos can be large as base64
+export const config = {
+  api: { bodyParser: { sizeLimit: '10mb' } }
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
