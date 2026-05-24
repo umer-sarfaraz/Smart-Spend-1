@@ -27,10 +27,10 @@ const DICTIONARY = [
   { keywords: ['apple', 'banana', 'lemon', 'orange', 'berry', 'strawberry', 'blueberry', 'grapes', 'mango', 'peach', 'watermelon', 'fruit'], category: 'fruits' },
   // Dairy & Eggs
   { keywords: ['milk', 'cheese', 'butter', 'yogurt', 'egg', 'cream', 'cheddar', 'mozzarella', 'dairy', 'curd'], category: 'dairy' },
-  // Meat & Seafood
-  { keywords: ['chicken', 'beef', 'pork', 'salmon', 'tuna', 'steak', 'turkey', 'sausage', 'bacon', 'shrimp', 'fish', 'meat'], category: 'meat' },
-  // Bakery & Pantry
-  { keywords: ['bread', 'rice', 'flour', 'sugar', 'pasta', 'oil', 'cereal', 'oats', 'toast', 'tortilla', 'spaghetti', 'bean', 'sauce', 'spice', 'wheat'], category: 'bakery' },
+  // Meat & Seafood (includes wholesale bulk formats)
+  { keywords: ['chicken', 'beef', 'pork', 'salmon', 'tuna', 'steak', 'turkey', 'sausage', 'bacon', 'shrimp', 'fish', 'meat', 'breast', 'thigh', 'wing', 'leg', 'ground beef', 'ribeye', 'tilapia', 'catfish', 'cod', 'crab', 'lobster', 'clam', 'oyster', 'veal', 'lamb', 'brisket'], category: 'meat' },
+  // Bakery & Pantry (includes wholesale bulk dry goods)
+  { keywords: ['bread', 'rice', 'flour', 'sugar', 'pasta', 'oil', 'cereal', 'oats', 'toast', 'tortilla', 'spaghetti', 'bean', 'sauce', 'spice', 'wheat', 'canola', 'olive oil', 'vinegar', 'seasoning', 'salt', 'pepper', 'canned', 'case', 'pack', 'jar', 'can '], category: 'bakery' },
   // Rent & Housing
   { keywords: ['rent', 'mortgage', 'lease', 'housing fee', 'property tax', 'landlord', 'tenant'], category: 'rent' },
   // Home Utilities
@@ -118,8 +118,34 @@ export const DEMO_PANTRY_ITEMS = {
   ]
 };
 
+// Known store name patterns for merchant detection
+const KNOWN_STORES = [
+  ['restaurant depot', 'Restaurant Depot'],
+  ['costco', 'Costco Wholesale'],
+  ["sam's club", "Sam's Club"],
+  ["bj's wholesale", "BJ's Wholesale"],
+  ['walmart', 'Walmart'],
+  ['kroger', 'Kroger'],
+  ['target', 'Target'],
+  ['whole foods', 'Whole Foods Market'],
+  ['trader joe', "Trader Joe's"],
+  ['aldi', 'ALDI'],
+  ['publix', 'Publix'],
+  ['safeway', 'Safeway'],
+  ['chevron', 'Chevron'],
+  ['shell', 'Shell'],
+  ['exxon', 'ExxonMobil'],
+  ['bp fuel', 'BP'],
+  ['starbucks', 'Starbucks'],
+  ['mcdonald', "McDonald's"],
+];
+
+// Skip-line keywords (totals, taxes, payment lines)
+const SKIP_KEYWORDS = ['total', 'subtotal', 'amount due', 'balance', 'tax', 'hst', 'gst', 'vat',
+  'cash', 'change', 'credit', 'debit', 'visa', 'mastercard', 'payment', 'tender', 'savings', 'discount'];
+
 // 5. Offline Tesseract Regex Parser
-// Scans extracted OCR text block by block to find totals and split items
+// Handles retail receipts AND wholesale/bulk store formats (Restaurant Depot, Costco, etc.)
 export function parseOcrTextOffline(text) {
   const lines = text.split('\n');
   const items = [];
@@ -128,59 +154,97 @@ export function parseOcrTextOffline(text) {
   let date = new Date().toISOString().split('T')[0];
   let isGasMeter = false;
 
+  const lowerText = text.toLowerCase();
   const nonEmptyLines = lines.map(l => l.trim()).filter(l => l.length > 0);
-  if (nonEmptyLines.length > 0) {
+
+  // Merchant: scan full text for known store names first, then fall back to first line
+  let foundStore = false;
+  for (const [keyword, name] of KNOWN_STORES) {
+    if (lowerText.includes(keyword)) {
+      merchant = name;
+      foundStore = true;
+      break;
+    }
+  }
+  if (!foundStore && nonEmptyLines.length > 0) {
     merchant = nonEmptyLines[0];
   }
 
-  const lowerText = text.toLowerCase();
-  if (lowerText.includes('gallon') || lowerText.includes('gal ') || lowerText.includes('price/gal') || lowerText.includes('$/gal') || lowerText.includes('octane') || lowerText.includes('pump #')) {
+  // Gas meter detection
+  if (lowerText.includes('gallon') || lowerText.includes('gal ') || lowerText.includes('price/gal') ||
+      lowerText.includes('$/gal') || lowerText.includes('octane') || lowerText.includes('pump #')) {
     isGasMeter = true;
-    merchant = merchant.toLowerCase().includes('unknown') ? 'Gas Station Fuel' : merchant;
+    if (!foundStore) merchant = 'Gas Station Fuel';
   }
 
-  const priceRegex = /(?:\$?\s*(\d+\.\d{2}))/;
+  // Date extraction: MM/DD/YY or MM/DD/YYYY or YYYY-MM-DD
+  const dateMatch = text.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/) ||
+                    text.match(/\b(\d{4})\-(\d{2})\-(\d{2})\b/);
+  if (dateMatch) {
+    try {
+      const [, a, b, c] = dateMatch;
+      if (a.length === 4) {
+        date = `${a}-${b}-${c}`;
+      } else {
+        const yr = c.length === 2 ? `20${c}` : c;
+        date = `${yr}-${a.padStart(2, '0')}-${b.padStart(2, '0')}`;
+      }
+    } catch {}
+  }
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed) continue;
+    if (!trimmed || trimmed.length < 3) continue;
 
     const lowerLine = trimmed.toLowerCase();
-    if (lowerLine.includes('total') || lowerLine.includes('subtotal') || lowerLine.includes('amount due') || lowerLine.includes('balance')) {
-      const match = trimmed.match(priceRegex);
-      if (match && match[1]) {
-        const val = parseFloat(match[1]);
+
+    // Capture max total from summary lines, then skip them
+    if (SKIP_KEYWORDS.some(k => lowerLine.includes(k))) {
+      const m = trimmed.match(/(\d+\.\d{2})/g);
+      if (m) {
+        const val = Math.max(...m.map(parseFloat));
         if (val > total) total = val;
       }
       continue;
     }
 
-    const matches = trimmed.match(/(.+?)(?:\s+)(\d+\.\d{2})\b/);
-    if (matches && matches[1] && matches[2]) {
-      const name = matches[1].trim();
-      const amount = parseFloat(matches[2]);
-      
-      if (name.length > 2 && !name.toLowerCase().includes('tax') && !name.toLowerCase().includes('cash') && !name.toLowerCase().includes('change')) {
-        items.push({
-          name: name,
-          amount: amount,
-          category: categorizeItem(name)
-        });
-      }
-    }
+    // Strip leading item codes: 5+ consecutive digits at start of line (wholesale format)
+    let cleaned = trimmed.replace(/^\d{5,}\s+/, '').trim();
+    if (!cleaned || cleaned.length < 2) continue;
+
+    // Find ALL prices on the line
+    const allPrices = cleaned.match(/\b\d{1,5}\.\d{2}\b/g);
+    if (!allPrices || allPrices.length === 0) continue;
+
+    // Use the LAST price — in wholesale receipts the rightmost column is the extended (line) total
+    const lastPriceStr = allPrices[allPrices.length - 1];
+    const amount = parseFloat(lastPriceStr);
+    if (amount <= 0 || amount > 9999) continue;
+
+    // Name = everything before the last price occurrence
+    const lastPriceIdx = cleaned.lastIndexOf(lastPriceStr);
+    let name = cleaned.substring(0, lastPriceIdx).trim();
+
+    // Clean up wholesale formatting artifacts from name
+    name = name.replace(/\s+@\s+\$?\d+\.\d+\/\w+\s*$/, '').trim();    // "@ $1.29/LB"
+    name = name.replace(/\s+\d+\.\d+\/\w+\s*$/, '').trim();            // "1.29/LB"
+    name = name.replace(/^\d+\.?\d*\s*(LB|OZ|KG|G|EA|CS|CT|PC)\s+/i, '').trim(); // "15.62 LB "
+    name = name.replace(/^\d+\s*[xX]\s+/, '').trim();                  // "2 X "
+    name = name.replace(/[\*\#]+$/, '').trim();                         // trailing * #
+
+    if (name.length < 2) continue;
+    if (/^[\d\s\.\-\*\/\\]+$/.test(name)) continue; // pure numeric/symbol — not an item
+    if (lowerLine.includes('www.') || lowerLine.includes('http')) continue;
+
+    items.push({ name, amount, category: categorizeItem(name) });
   }
 
   if (items.length === 0) {
     if (total === 0) {
       const allPrices = text.match(/\b\d+\.\d{2}\b/g);
-      if (allPrices) {
-        const numbers = allPrices.map(parseFloat);
-        total = Math.max(...numbers);
-      }
+      if (allPrices) total = Math.max(...allPrices.map(parseFloat));
     }
-    
     if (total === 0) total = 10.00;
-
     items.push({
       name: isGasMeter ? 'Fuel Capture' : 'General Purchase',
       amount: total,
@@ -188,54 +252,57 @@ export function parseOcrTextOffline(text) {
     });
   }
 
-  return {
-    merchant: merchant,
-    date: date,
-    isGasMeter: isGasMeter,
-    items: items
-  };
+  return { merchant, date, isGasMeter, items };
 }
 
-// 6. Google Gemini 1.5 Flash Multimodal API Integrator
+// 6. Google Gemini 2.0 Flash Multimodal API Integrator
 // Reads base64 receipts or gas meters and extracts full structured data client-side.
 export async function parseWithGemini(base64Image, mimeType, apiKey) {
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    
-    const prompt = `You are a receipt scanning engine for a personal mobile expense app.
-Analyze this photo which is either a shopping receipt or a gas pump station meter screen.
-Extract:
-1. The merchant name (e.g. "Walmart", "Chevron").
-2. The transaction date in YYYY-MM-DD format (use today's date if not visible).
-3. Whether this is a gas station pump display screen (isGasMeter: true/false).
-4. A highly detailed list of items.
-   - For a gas meter screen, extract one item describing the fuel cost (e.g., "Regular Fuel 12.5 Gal") and categorize as "fuel".
-   - For receipts, extract EACH line item, cleaning up bad OCR text into human readable grocery names (e.g. "ORG TMT" -> "Organic Tomatoes").
-   - Categorize each item EXACTLY into one of these 14 categories: "vegetables", "fruits", "dairy", "meat", "bakery", "rent", "utilities", "fuel", "dining", "fitness", "education", "shopping", "entertainment", "other".
-   Be extremely smart and detailed:
-   - Green Groceries (cucumbers, spinach, tomatoes, potatoes, onions) go strictly into "vegetables".
-   - Sweet/Citrus fruit items (apples, bananas, oranges, berries, grapes) go strictly into "fruits".
-   - Milk, cheese, yogurt, eggs go strictly into "dairy".
-   - Chicken, salmon, beef, fish go strictly into "meat".
-   - Grains, wheat, flour, bread, rice, oil, sauces go strictly into "bakery".
-   - Rent, mortgage payments, housing association fees go strictly into "rent".
-   - Gym memberships, sports clubs, yoga fees, workout charges go strictly into "fitness".
-   - School tuition, tuition fees, college courses, study books go strictly into "education".
-   - Electricity, power, gas utility, water bills, wifi internet go strictly into "utilities".
-   - Fuel pump station purchases go strictly into "fuel".
-   - Restaurants, coffee shops, cafe checkouts go strictly into "dining".
-   - Hygiene items (shampoo, soap, toothpaste), clothes, apparel go strictly into "shopping".
-   - Netflix, cinema, gaming subscriptions go strictly into "entertainment".
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
-Return EXACTLY a JSON block with no markdown formatting around it, matching this format:
+    const prompt = `You are a receipt scanning engine for a personal mobile expense app.
+Analyze this photo — it could be a retail grocery receipt, a wholesale/bulk store receipt (e.g. Restaurant Depot, Costco, Sam's Club, BJ's), or a gas pump meter screen.
+
+Extract:
+1. The merchant/store name (e.g. "Restaurant Depot", "Costco", "Walmart", "Chevron").
+2. The transaction date in YYYY-MM-DD format (use today's date if not clearly visible).
+3. Whether this is a gas station pump display screen (isGasMeter: true/false).
+4. Every purchased line item with its correct extended price (the final charged amount per line).
+
+IMPORTANT rules for item extraction:
+- STRIP item/product codes — wholesale receipts often have 5-8 digit codes before item names. Remove them; only keep the human-readable name.
+- For weight-based items (e.g. "15.62 LB @ $1.29/LB  $20.15"), use the extended price ($20.15) and write a clean name like "Chicken Breast (15.62 lb)".
+- For case/pack items (e.g. "2 CS TOMATO SAUCE  $18.00"), write a clean name like "Tomato Sauce (2 cases)".
+- Clean up abbreviated OCR names into readable English (e.g. "ORG TMT 25LB" → "Organic Tomatoes 25 lb").
+- Skip lines for tax, fees, total, subtotal, discounts, payments, or coupons.
+- For a gas meter, extract one item with the total fuel cost.
+
+Categorize each item into exactly one of these 14 categories:
+"vegetables" — fresh/frozen produce: tomatoes, potatoes, onions, peppers, spinach, etc.
+"fruits" — apples, bananas, citrus, berries, grapes, etc.
+"dairy" — milk, cheese, butter, yogurt, eggs, cream
+"meat" — chicken, beef, pork, fish, seafood, deli meats
+"bakery" — bread, rice, flour, pasta, oil, sauces, canned goods, dry goods, grains
+"rent" — rent, mortgage, housing fees
+"utilities" — electricity, water, internet, phone bill
+"fuel" — gas station, diesel, petrol
+"dining" — restaurants, cafes, coffee shops, fast food
+"fitness" — gym, yoga, sports club
+"education" — tuition, courses, school fees, books
+"shopping" — hygiene, clothing, household goods, cleaning supplies
+"entertainment" — streaming, cinema, games, subscriptions
+"other" — anything that doesn't fit above
+
+Return EXACTLY a JSON object with no markdown formatting, no code fences, matching this structure:
 {
-  "merchant": "Walmart",
+  "merchant": "Restaurant Depot",
   "date": "2026-05-24",
   "isGasMeter": false,
   "items": [
-    { "name": "Organic Roma Tomatoes", "amount": 3.49, "category": "vegetables" },
-    { "name": "Fresh Gala Apples", "amount": 4.99, "category": "fruits" },
-    { "name": "Whole Milk 1G", "amount": 3.89, "category": "dairy" }
+    { "name": "Chicken Breast (15.62 lb)", "amount": 20.15, "category": "meat" },
+    { "name": "Roma Tomatoes 25 lb", "amount": 18.99, "category": "vegetables" },
+    { "name": "Canola Oil 1 Gal", "amount": 12.49, "category": "bakery" }
   ]
 }`;
 
@@ -283,7 +350,7 @@ Return EXACTLY a JSON block with no markdown formatting around it, matching this
 // Analyzes images of an open fridge or container dry grains and extracts inventory details
 export async function scanPantryWithGemini(base64Image, mimeType, apiKey, scanType) {
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
     
     const prompt = scanType === 'fridge' 
       ? `You are an AI fridge scanning engine. Analyze this photo of the inside of an open refrigerator.
