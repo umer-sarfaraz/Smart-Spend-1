@@ -1,9 +1,4 @@
-// Allow up to 10MB body — phone camera photos can be large as base64
-export const config = {
-  api: { bodyParser: { sizeLimit: '10mb' } }
-};
-
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -13,9 +8,9 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: 'AI service not configured on server' });
   }
 
-  const { base64Image, mimeType, prompt } = req.body;
+  const { base64Image, mimeType, prompt } = req.body || {};
   if (!base64Image || !mimeType || !prompt) {
-    return res.status(400).json({ error: 'Missing required fields: base64Image, mimeType, prompt' });
+    return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
@@ -48,4 +43,4 @@ export default async function handler(req, res) {
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
-}
+};
