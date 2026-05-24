@@ -16,6 +16,7 @@ export default function Scanner({ onClose, onSave }) {
   const [scanMode, setScanMode] = useState('camera');
   const [parsedData, setParsedData] = useState(null);
   const [scanCount, setScanCount] = useState(0);
+  const [usedAI, setUsedAI] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -135,8 +136,11 @@ export default function Scanner({ onClose, onSave }) {
       try {
         setStatusMessage('Scanning with AI...');
         newResult = await parseWithGemini(base64, mimeType);
+        setUsedAI(true);
         setStatusMessage('Structuring items...');
-      } catch {
+      } catch (aiErr) {
+        setStatusMessage(`AI unavailable (${aiErr.message}) — switching to OCR...`);
+        await new Promise(r => setTimeout(r, 1500)); // show the error briefly
         setStatusMessage('Loading OCR engine...');
         const worker = await createWorker('eng', 1, {
           logger: m => {
@@ -325,6 +329,12 @@ export default function Scanner({ onClose, onSave }) {
         {/* ===== REVIEW VIEW ===== */}
         {scanMode === 'review' && parsedData && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+            {/* AI vs OCR badge */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', background: usedAI ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)', border: `1px solid ${usedAI ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}`, borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700, color: usedAI ? '#34d399' : '#fbbf24' }}>
+              <span>{usedAI ? '✦ Gemini AI' : '⚠ OCR Fallback'}</span>
+              <span style={{ fontWeight: 400, opacity: 0.8 }}>{usedAI ? '— AI read your receipt' : '— AI unavailable, results may need editing'}</span>
+            </div>
 
             {/* Multi-scan tip */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 14px', background: scanCount > 1 ? 'rgba(99,102,241,0.06)' : 'rgba(16,185,129,0.06)', border: `1px solid ${scanCount > 1 ? 'rgba(99,102,241,0.2)' : 'rgba(16,185,129,0.2)'}`, borderRadius: '12px', fontSize: '0.75rem', lineHeight: 1.5 }}>
