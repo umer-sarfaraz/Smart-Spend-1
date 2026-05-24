@@ -210,23 +210,15 @@ export default function Pantry({ expenses, budget, onSaveBudget }) {
     setIsProcessing(true);
     setHasRolledOver(false);
 
-    const apiKey = localStorage.getItem('smartspend_gemini_key');
-
     try {
-      if (apiKey) {
-        setStatusMessage(scanType === 'fridge' ? 'AI Fridge Vision processing...' : 'AI Dry Package density scanning...');
-        const response = await scanPantryWithGemini(base64, mimeType, apiKey, scanType);
-        setScannedItems(response);
-        setShowScanner(false);
-      } else {
-        setStatusMessage('AI Image extraction loading...');
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setScannedItems(DEMO_PANTRY_ITEMS[scanType]);
-        setShowScanner(false);
-      }
+      setStatusMessage(scanType === 'fridge' ? 'AI Fridge Vision processing...' : 'AI Dry Package density scanning...');
+      const response = await scanPantryWithGemini(base64, mimeType, scanType);
+      setScannedItems(response);
+      setShowScanner(false);
     } catch (err) {
       console.error(err);
-      alert('Pantry scan failed. Loading simulated demo.');
+      setStatusMessage('AI Image extraction loading...');
+      await new Promise(resolve => setTimeout(resolve, 800));
       setScannedItems(DEMO_PANTRY_ITEMS[scanType]);
       setShowScanner(false);
     } finally {

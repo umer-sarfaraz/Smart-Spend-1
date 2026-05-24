@@ -255,13 +255,10 @@ export function parseOcrTextOffline(text) {
   return { merchant, date, isGasMeter, items };
 }
 
-// 6. Google Gemini 2.0 Flash Multimodal API Integrator
-// Reads base64 receipts or gas meters and extracts full structured data client-side.
-export async function parseWithGemini(base64Image, mimeType, apiKey) {
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-    const prompt = `You are a receipt scanning engine for a personal mobile expense app.
+// 6. Gemini Receipt Parser — calls the server-side proxy (/api/gemini)
+// The API key is stored as a Vercel environment variable; clients never see it.
+export async function parseWithGemini(base64Image, mimeType) {
+  const prompt = `You are a receipt scanning engine for a personal mobile expense app.
 Analyze this photo — it could be a retail grocery receipt, a wholesale/bulk store receipt (e.g. Restaurant Depot, Costco, Sam's Club, BJ's), or a gas pump meter screen.
 
 Extract:
@@ -306,54 +303,24 @@ Return EXACTLY a JSON object with no markdown formatting, no code fences, matchi
   ]
 }`;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: prompt },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: base64Image
-                }
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
-      })
-    });
+  const response = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base64Image, mimeType, prompt })
+  });
 
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error?.message || 'Gemini API failed');
-    }
-
-    const data = await response.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    return JSON.parse(resultText.trim());
-  } catch (error) {
-    console.error('Gemini API Error:', error);
-    throw error;
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'AI service failed');
   }
+
+  return await response.json();
 }
 
-// 7. Google Gemini AI Vision Pantry Scanner
-// Analyzes images of an open fridge or container dry grains and extracts inventory details
-export async function scanPantryWithGemini(base64Image, mimeType, apiKey, scanType) {
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-    
-    const prompt = scanType === 'fridge' 
-      ? `You are an AI fridge scanning engine. Analyze this photo of the inside of an open refrigerator.
+// 7. Gemini Pantry Scanner — calls the server-side proxy (/api/gemini)
+export async function scanPantryWithGemini(base64Image, mimeType, scanType) {
+  const prompt = scanType === 'fridge'
+    ? `You are an AI fridge scanning engine. Analyze this photo of the inside of an open refrigerator.
 Identify visible ingredients and estimate how full each item is as a percentage (fullPercent: 0 to 100, representing remaining quantity).
 Only return standard, concrete items like Milk, Eggs, Butter, Cheese, Tomatoes, Lettuce, Meat, Salmon, Yogurt.
 Categorize each into "dairy", "vegetables", "fruits", "meat", "bakery", or "other".
@@ -362,49 +329,23 @@ Return EXACTLY a JSON array, with no markdown styling around it, matching this f
   { "name": "Whole Milk Gallon", "category": "dairy", "fullPercent": 30 },
   { "name": "Organic Roma Tomatoes", "category": "vegetables", "fullPercent": 70 }
 ]`
-      : `You are an AI pantry container scanner. Analyze this photo of a dry ingredient package (like wheat, flour, rice, sugar, or cereal).
+    : `You are an AI pantry container scanner. Analyze this photo of a dry ingredient package (like wheat, flour, rice, sugar, or cereal).
 Identify what the ingredient is, and estimate what percentage of the package is still remaining (fullPercent: 0 to 100).
 Return EXACTLY a JSON array containing a single item, with no markdown formatting, matching this format:
 [
   { "name": "Premium Wheat Container", "category": "bakery", "fullPercent": 40 }
 ]`;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: prompt },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: base64Image
-                }
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
-      })
-    });
+  const response = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base64Image, mimeType, prompt })
+  });
 
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error?.message || 'Gemini API failed');
-    }
-
-    const data = await response.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    return JSON.parse(resultText.trim());
-  } catch (error) {
-    console.error('Gemini Pantry API Error:', error);
-    throw error;
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'AI service failed');
   }
+
+  return await response.json();
 }

@@ -4,7 +4,7 @@ import { CATEGORIES, DEMO_RECEIPTS, parseOcrTextOffline, parseWithGemini } from 
 import { Camera, FileImage, Sparkles, Check, X, Info, Plus, Trash2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-export default function Scanner({ onClose, onSave, geminiKey }) {
+export default function Scanner({ onClose, onSave }) {
   const [streamActive, setStreamActive] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -112,11 +112,12 @@ export default function Scanner({ onClose, onSave, geminiKey }) {
     try {
       let newResult;
 
-      if (geminiKey) {
-        setStatusMessage('Connecting to Google Gemini AI...');
-        newResult = await parseWithGemini(base64, mimeType, geminiKey);
+      // Always try the server-side AI proxy first; fall back to Tesseract OCR if unavailable
+      try {
+        setStatusMessage('Scanning with AI...');
+        newResult = await parseWithGemini(base64, mimeType);
         setStatusMessage('Structuring items...');
-      } else {
+      } catch {
         setStatusMessage('Loading OCR engine...');
         const worker = await createWorker('eng', 1, {
           logger: m => {
@@ -236,12 +237,6 @@ export default function Scanner({ onClose, onSave, geminiKey }) {
               </div>
             )}
 
-            {!geminiKey && (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 14px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '12px', marginBottom: '10px', fontSize: '0.72rem', color: '#fbbf24', lineHeight: 1.5 }}>
-                <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                <span><strong>Free OCR mode</strong> — reads text directly from photo. Add a free Gemini key in Settings for best results on messy receipts.</span>
-              </div>
-            )}
 
             {!cameraError ? (
               <div className="scanner-viewport">

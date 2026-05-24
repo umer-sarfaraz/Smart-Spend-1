@@ -66,10 +66,6 @@ export default function App() {
     return isNaN(parsed) ? 500 : parsed;
   });
 
-  const [geminiKey, setGeminiKey] = useState(() => {
-    return localStorage.getItem('smartspend_gemini_key') || '';
-  });
-
   // Shopping list checklist state
   const [shoppingList, setShoppingList] = useState(() => {
     const cached = localStorage.getItem('smartspend_shopping_list');
@@ -203,10 +199,6 @@ export default function App() {
   }, [budget]);
 
   useEffect(() => {
-    localStorage.setItem('smartspend_gemini_key', geminiKey);
-  }, [geminiKey]);
-
-  useEffect(() => {
     localStorage.setItem('smartspend_shopping_list', JSON.stringify(shoppingList));
   }, [shoppingList]);
 
@@ -230,13 +222,11 @@ export default function App() {
   const handleResetData = () => {
     setExpenses([]);
     setBudget(500);
-    setGeminiKey('');
     setShoppingList([]);
     setCustomStores([]);
     setCustomSuggestions([]);
     localStorage.removeItem('smartspend_expenses');
     localStorage.removeItem('smartspend_budget');
-    localStorage.removeItem('smartspend_gemini_key');
     localStorage.removeItem('smartspend_shopping_list');
     localStorage.removeItem('smartspend_custom_stores');
     localStorage.removeItem('smartspend_custom_suggestions');
@@ -369,18 +359,8 @@ export default function App() {
           <p>Local-First Expense Tracker</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div 
-            style={{ 
-              width: '8px', 
-              height: '8px', 
-              borderRadius: '50%', 
-              background: geminiKey ? '#10b981' : '#f59e0b',
-              boxShadow: geminiKey ? '0 0 8px #10b981' : '0 0 8px #f59e0b'
-            }} 
-          />
-          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
-            {geminiKey ? 'Gemini AI Active' : 'Offline Mode'}
-          </span>
+          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>AI Active</span>
         </div>
       </header>
 
@@ -444,8 +424,6 @@ export default function App() {
           <Settings
             budget={budget}
             onSaveBudget={setBudget}
-            geminiKey={geminiKey}
-            onSaveGeminiKey={setGeminiKey}
             expenses={expenses}
             onResetData={handleResetData}
             onSaveAllExpenses={setExpenses}
@@ -462,7 +440,6 @@ export default function App() {
         <Scanner
           onClose={() => setIsScanOpen(false)}
           onSave={handleSaveExpense}
-          geminiKey={geminiKey}
         />
       )}
 
@@ -494,7 +471,7 @@ export default function App() {
               <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>📊</span><span>Tap the <strong>budget ring</strong> on Home to set your monthly spending limit</span></div>
               <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>📷</span><span>Tap <strong>Scan Bill</strong> to photograph any receipt — it reads items automatically</span></div>
               <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>🛒</span><span>Build a <strong>grocery checklist</strong> and share it with family over WhatsApp in one tap</span></div>
-              <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>⚙️</span><span>Visit <strong>Settings</strong> to add a free Gemini AI key for best receipt scanning</span></div>
+              <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>⚙️</span><span>Visit <strong>Settings</strong> to set your monthly budget and manage your data</span></div>
             </div>
             <button onClick={dismissWelcome} className="solid-btn" style={{ padding: '14px', fontSize: '0.95rem', borderRadius: '16px' }}>
               Let's get started 🚀

@@ -1,15 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { Sparkles, Save, Download, Trash2, Key, Info, Upload, BookOpen, Plus, X, AlertTriangle, Check } from 'lucide-react';
+import { Save, Download, Trash2, Info, Upload, BookOpen, Plus, X, AlertTriangle, Check } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CATEGORIES } from '../utils/parser';
 
 export default function Settings({
-  budget, onSaveBudget, geminiKey, onSaveGeminiKey, onResetData, expenses, onSaveAllExpenses,
+  budget, onSaveBudget, onResetData, expenses, onSaveAllExpenses,
   customSuggestions = [], onSaveCustomSuggestions, customStores = [], showToast
 }) {
   const [budgetVal, setBudgetVal] = useState(budget);
-  const [apiKeyVal, setApiKeyVal] = useState(geminiKey);
-  const [showKey, setShowKey] = useState(false);
 
   // In-app confirm modal state
   const [confirmState, setConfirmState] = useState(null); // { message, onConfirm }
@@ -25,12 +23,6 @@ export default function Settings({
     e.preventDefault();
     onSaveBudget(parseFloat(budgetVal) || 1000);
     if (showToast) showToast('Monthly budget updated ✓');
-  };
-
-  const handleSaveKey = (e) => {
-    e.preventDefault();
-    onSaveGeminiKey(apiKeyVal.trim());
-    if (showToast) showToast('Gemini API key saved on device ✓');
   };
 
   // 1. CSV EXPORTER
@@ -194,61 +186,7 @@ export default function Settings({
         </form>
       </div>
 
-      {/* 2. Optional Google Gemini AI Settings */}
-      <div className="glass-card">
-        <h2 className="section-title" style={{ color: '#a5b4fc' }}>
-          <Sparkles size={18} /> Gemini AI Receipt Engine
-        </h2>
-
-        <p style={{ fontSize: '0.76rem', color: '#94a3b8', lineHeight: '1.45', marginBottom: '14px' }}>
-          Enable high-fidelity multimodal OCR! Paste a free Gemini Key to scan receipts item-by-item and extract gas meter totals with perfect semantic accuracy.
-        </p>
-
-        <form onSubmit={handleSaveKey} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div className="input-group" style={{ marginBottom: 0 }}>
-            <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Gemini API Key</span>
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
-              >
-                {showKey ? 'Hide' : 'Reveal'}
-              </button>
-            </label>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <input
-                type={showKey ? 'text' : 'password'}
-                placeholder="AIzaSy..."
-                value={apiKeyVal}
-                onChange={(e) => setApiKeyVal(e.target.value)}
-                className="input-element"
-                style={{ width: '100%', paddingLeft: '40px', fontSize: '0.85rem' }}
-              />
-              <Key size={16} style={{ position: 'absolute', left: '14px', color: '#64748b' }} />
-            </div>
-          </div>
-
-          <button type="submit" className="solid-btn" style={{ background: 'linear-gradient(135deg, #a5b4fc, #6366f1)' }}>
-            <Save size={18} /> Save Credentials
-          </button>
-        </form>
-
-        <div className="setup-guide">
-          <strong>How to get a key for free (60 Secs):</strong>
-          <ol>
-            <li>Go to <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" style={{ color: '#a5b4fc', textDecoration: 'underline' }}>Google AI Studio</a>.</li>
-            <li>Click the <strong>"Get API key"</strong> button at the top-left.</li>
-            <li>Generate your key, copy it, and paste it here!</li>
-          </ol>
-          <div style={{ display: 'flex', gap: '6px', marginTop: '10px', fontSize: '0.7rem', color: '#64748b' }}>
-            <Info size={12} style={{ flexShrink: 0 }} />
-            <span>This credential is saved purely inside your browser. It never touches our servers.</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Portability Data Utilities (Backup & Restore) */}
+      {/* 2. Portability Data Utilities (Backup & Restore) */}
       <div className="glass-card">
         <h2 className="section-title">📂 Data Backup & Excel Sync</h2>
         <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '14px', lineHeight: '1.4' }}>
