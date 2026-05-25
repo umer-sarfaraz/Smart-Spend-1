@@ -297,6 +297,11 @@ export default function App() {
     setShoppingList([]);
   };
 
+  // Remove only the checked (done) items in a single pass — fixes the broken index-loop bug
+  const handleClearCheckedItems = () => {
+    setShoppingList(prev => (Array.isArray(prev) ? prev : []).filter(i => !i.checked));
+  };
+
   const handleUpdateShoppingItem = (idx, updatedFields) => {
     try {
       const currentList = Array.isArray(shoppingList) ? shoppingList : [];
@@ -392,6 +397,7 @@ export default function App() {
             onToggleItem={handleToggleShoppingItem}
             onDeleteItem={handleDeleteShoppingItem}
             onClearList={handleClearShoppingList}
+            onClearCheckedItems={handleClearCheckedItems}
             onUpdateItem={handleUpdateShoppingItem}
             customStores={customStores}
             onAddCustomStore={handleAddCustomStore}

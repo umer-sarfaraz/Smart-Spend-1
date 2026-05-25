@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { CATEGORIES } from '../utils/parser';
 import {
   ShoppingBag, Plus, Edit2, CheckCircle, Circle, Trash2,
-  Copy, Send, Camera, X, Check, Search, ArrowLeft
+  Copy, Send, Camera, X, Check, Search, ArrowLeft,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -70,7 +70,6 @@ const storeEmoji = (name = '') => {
   return '🏪';
 };
 
-// Default store per category
 const DEFAULT_STORE = {
   vegetables: 'Lotte', fruits: 'Lotte', dairy: 'Walmart',
   meat: 'Halal Store', bakery: 'Restaurant Depot', shopping: 'Walmart',
@@ -79,38 +78,43 @@ const DEFAULT_STORE = {
 
 export default function ShoppingList({
   listItems, onAddItem, onToggleItem, onDeleteItem, onUpdateItem,
+  onClearCheckedItems,
   customStores, onAddCustomStore, customSuggestions, showToast,
 }) {
+  // ── mode ──────────────────────────────────────────────────────────────────
+  const [mode, setMode]             = useState('planning'); // 'planning' | 'shopping'
+  const [showBought, setShowBought] = useState(false);
+
   // ── home search ───────────────────────────────────────────────────────────
   const [homeSearch, setHomeSearch] = useState('');
 
   // ── catalog ───────────────────────────────────────────────────────────────
-  const [showCatalog, setShowCatalog] = useState(false);
-  const [catalogSection, setCatalogSection] = useState(null); // null = section grid
-  const [catalogSearch, setCatalogSearch] = useState('');
+  const [showCatalog, setShowCatalog]       = useState(false);
+  const [catalogSection, setCatalogSection] = useState(null);
+  const [catalogSearch, setCatalogSearch]   = useState('');
 
   // ── custom item (typed by hand) ───────────────────────────────────────────
-  const [customName, setCustomName] = useState('');
-  const [customStore, setCustomStore] = useState('Walmart');
+  const [customName, setCustomName]         = useState('');
+  const [customStore, setCustomStore]       = useState('Walmart');
   const [customCategory, setCustomCategory] = useState('other');
   const [showCustomForm, setShowCustomForm] = useState(false);
 
   // ── edit modal ────────────────────────────────────────────────────────────
-  const [editIdx, setEditIdx] = useState(null);
-  const [editName, setEditName] = useState('');
+  const [editIdx,   setEditIdx]   = useState(null);
+  const [editName,  setEditName]  = useState('');
   const [editStore, setEditStore] = useState('');
-  const [editCat, setEditCat] = useState('');
+  const [editCat,   setEditCat]   = useState('');
 
   // ── camera scanner ────────────────────────────────────────────────────────
-  const [showScanner, setShowScanner] = useState(false);
+  const [showScanner,  setShowScanner]  = useState(false);
   const [streamActive, setStreamActive] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const [cameraError, setCameraError] = useState(false);
+  const [scanning,     setScanning]     = useState(false);
+  const [cameraError,  setCameraError]  = useState(false);
 
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const videoRef     = useRef(null);
+  const canvasRef    = useRef(null);
   const fileInputRef = useRef(null);
-  const letterRefs = useRef({});
+  const letterRefs   = useRef({});
 
   const safe = (Array.isArray(listItems) ? listItems : [])
     .filter(i => i && typeof i.name === 'string');
@@ -122,20 +126,25 @@ export default function ShoppingList({
     ? safe.filter(i => i.name.toLowerCase().includes(homeSearch.toLowerCase()))
     : safe;
   const unchecked = filtered.filter(i => !i.checked);
-  const checked = filtered.filter(i => i.checked);
+  const checked   = filtered.filter(i => i.checked);
+
+  // ── Shopping mode: celebrate when everything is bought ────────────────────
+  useEffect(() => {
+    if (mode === 'shopping' && safe.length > 0 && safe.every(i => i.checked)) {
+      try {
+        confetti({ particleCount: 140, spread: 90, origin: { y: 0.55 }, colors: ['#6366f1', '#10b981', '#fbbf24'] });
+      } catch (_) {}
+    }
+  }, [mode, listItems]); // re-check whenever list changes
 
   // ── catalog items for current section + search ────────────────────────────
   const getCatalogItems = () => {
     const q = catalogSearch.trim().toLowerCase();
     if (q) {
-      // search across all categories
       const results = [];
       Object.entries(CATALOG).forEach(([cat, names]) => {
-        names.forEach(name => {
-          if (name.toLowerCase().includes(q)) results.push({ name, cat });
-        });
+        names.forEach(name => { if (name.toLowerCase().includes(q)) results.push({ name, cat }); });
       });
-      // also include custom suggestions
       (customSuggestions || []).forEach(s => {
         if (s?.name?.toLowerCase().includes(q)) results.push({ name: s.name, cat: s.category || 'other', store: s.store });
       });
@@ -143,7 +152,6 @@ export default function ShoppingList({
     }
     if (!catalogSection) return [];
     const names = [...(CATALOG[catalogSection] || [])];
-    // also append custom suggestions for this category
     (customSuggestions || []).forEach(s => {
       if (s?.category === catalogSection && s?.name && !names.includes(s.name)) names.push(s.name);
     });
@@ -151,8 +159,6 @@ export default function ShoppingList({
   };
 
   const catalogItems = getCatalogItems();
-
-  // group catalog items by first letter (for A-Z index)
   const byLetter = {};
   catalogItems.forEach(item => {
     const l = item.name[0]?.toUpperCase() || '#';
@@ -164,7 +170,7 @@ export default function ShoppingList({
   // ── add from catalog ──────────────────────────────────────────────────────
   const addCatalogItem = (item) => {
     const alreadyIn = safe.some(i => i.name.toLowerCase() === item.name.toLowerCase() && !i.checked);
-    if (alreadyIn) { showToast?.(`Already in your list`, 'info'); return; }
+    if (alreadyIn) { showToast?.('Already in your list', 'info'); return; }
     const store = item.store || DEFAULT_STORE[item.cat] || 'Walmart';
     onAddItem({ name: item.name, checked: false, store, category: item.cat });
     showToast?.(`"${item.name}" added ✓`);
@@ -239,7 +245,23 @@ export default function ShoppingList({
 
   const scrollToLetter = (l) => letterRefs.current[l]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  // ── item row ──────────────────────────────────────────────────────────────
+  // ── helpers ───────────────────────────────────────────────────────────────
+  const closeCatalog = () => {
+    setShowCatalog(false);
+    setShowCustomForm(false);
+    setCustomName('');
+  };
+
+  const toggleStyle = (active) => ({
+    flex: 1, padding: '10px', borderRadius: '12px', border: 'none',
+    background: active ? 'rgba(255,255,255,0.1)' : 'transparent',
+    color: active ? '#fff' : '#64748b',
+    fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+    transition: 'all 0.18s',
+  });
+
+  // ── planning mode item row ────────────────────────────────────────────────
   const ItemRow = ({ item, idx }) => (
     <div
       onClick={() => onToggleItem(idx)}
@@ -252,87 +274,276 @@ export default function ShoppingList({
     >
       {item.checked
         ? <CheckCircle size={20} style={{ color: '#10b981', flexShrink: 0 }} />
-        : <Circle size={20} style={{ color: '#475569', flexShrink: 0 }} />}
+        : <Circle     size={20} style={{ color: '#475569', flexShrink: 0 }} />}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '0.9rem', fontWeight: 700, textDecoration: item.checked ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
+        <div style={{ fontSize: '0.9rem', fontWeight: 700, textDecoration: item.checked ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {item.name}
+        </div>
         <div style={{ fontSize: '0.66rem', color: '#64748b', marginTop: '2px' }}>
           {storeEmoji(item.store || '')} {item.store || 'Walmart'}
           &nbsp;·&nbsp;{CATEGORIES[item.category || 'other']?.icon} {CATEGORIES[item.category || 'other']?.label}
         </div>
       </div>
-      <button onClick={e => { e.stopPropagation(); openEdit(idx); }} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '6px' }}><Edit2 size={14} /></button>
-      <button onClick={e => { e.stopPropagation(); onDeleteItem(idx); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px' }}><Trash2 size={14} /></button>
+      <button onClick={e => { e.stopPropagation(); openEdit(idx); }}
+        style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '6px' }}>
+        <Edit2 size={14} />
+      </button>
+      <button onClick={e => { e.stopPropagation(); onDeleteItem(idx); }}
+        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px' }}>
+        <Trash2 size={14} />
+      </button>
     </div>
   );
 
   // ─────────────────────────────────────────────────────────────────────────
+  const boughtCount   = safe.filter(i => i.checked).length;
+  const allDone       = safe.length > 0 && boughtCount === safe.length;
+  const shoppingItems = (showBought ? safe : unchecked).filter(i =>
+    homeSearch.trim() ? i.name.toLowerCase().includes(homeSearch.toLowerCase()) : true
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', paddingBottom: '80px' }}>
 
-      {/* ── SEARCH BAR ─────────────────────────────────────────────────────── */}
+      {/* ── PLANNING / SHOPPING TOGGLE ────────────────────────────────────── */}
+      <div style={{
+        display: 'flex', background: 'rgba(255,255,255,0.03)',
+        padding: '4px', borderRadius: '16px',
+        border: '1px solid rgba(255,255,255,0.06)', gap: '4px'
+      }}>
+        <button style={toggleStyle(mode === 'planning')} onClick={() => setMode('planning')}>
+          ✏️ Planning
+        </button>
+        <button style={toggleStyle(mode === 'shopping')} onClick={() => setMode('shopping')}>
+          🛒 Shopping
+        </button>
+      </div>
+
+      {/* ── SEARCH BAR ───────────────────────────────────────────────────── */}
       <div style={{ position: 'relative' }}>
         <Search size={15} style={{ position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
         <input type="text" placeholder="Search your list..." value={homeSearch}
           onChange={e => setHomeSearch(e.target.value)} className="input-element"
           style={{ paddingLeft: '38px', paddingRight: homeSearch ? '36px' : '14px' }} />
         {homeSearch && (
-          <button onClick={() => setHomeSearch('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={14} /></button>
+          <button onClick={() => setHomeSearch('')}
+            style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
+            <X size={14} />
+          </button>
         )}
       </div>
 
-      {/* ── LIST ───────────────────────────────────────────────────────────── */}
-      {safe.length === 0 ? (
-        <div className="glass-card" style={{ textAlign: 'center', padding: '52px 20px' }}>
-          <ShoppingBag size={44} style={{ margin: '0 auto 16px', opacity: 0.15, display: 'block' }} />
-          <p style={{ fontWeight: 800, fontSize: '1rem', color: '#94a3b8', marginBottom: '6px' }}>Your checklist is empty</p>
-          <p style={{ fontSize: '0.78rem', color: '#64748b' }}>Tap <strong>Add Items</strong> below to browse and add groceries</p>
-        </div>
-      ) : (
+      {/* ══════════════════════════════════════════════════════════════════════
+          PLANNING MODE
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mode === 'planning' && (
         <>
-          {unchecked.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: '2px' }}>
-                To buy · {unchecked.length}
-              </div>
-              {unchecked.map(item => <ItemRow key={item.originalIndex ?? safe.indexOf(item)} item={item} idx={safe.indexOf(item)} />)}
+          {safe.length === 0 ? (
+            <div className="glass-card" style={{ textAlign: 'center', padding: '52px 20px' }}>
+              <ShoppingBag size={44} style={{ margin: '0 auto 16px', opacity: 0.15, display: 'block' }} />
+              <p style={{ fontWeight: 800, fontSize: '1rem', color: '#94a3b8', marginBottom: '6px' }}>Your checklist is empty</p>
+              <p style={{ fontSize: '0.78rem', color: '#64748b' }}>Tap <strong>Add Items</strong> below to browse and add groceries</p>
             </div>
-          )}
-          {checked.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingLeft: '2px' }}>
-                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Done · {checked.length}</span>
-                <button onClick={() => { checked.forEach(i => onDeleteItem(safe.indexOf(i))); showToast?.('Cleared done items'); }}
-                  style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>Clear all</button>
+          ) : (
+            <>
+              {unchecked.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: '2px' }}>
+                    To buy · {unchecked.length}
+                  </div>
+                  {unchecked.map(item => (
+                    <ItemRow key={safe.indexOf(item)} item={item} idx={safe.indexOf(item)} />
+                  ))}
+                </div>
+              )}
+
+              {checked.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingLeft: '2px' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Done · {checked.length}
+                    </span>
+                    {/* FIX: single-pass filter, no broken index loop */}
+                    <button
+                      onClick={() => { onClearCheckedItems?.(); showToast?.('Cleared done items'); }}
+                      style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>
+                      Clear all
+                    </button>
+                  </div>
+                  {checked.map(item => (
+                    <ItemRow key={safe.indexOf(item)} item={item} idx={safe.indexOf(item)} />
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                <button onClick={shareWhatsApp} className="solid-btn" style={{ flex: 1, background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}>
+                  <Send size={15} /> WhatsApp
+                </button>
+                <button onClick={copyLink} className="outline-btn" style={{ flex: 1 }}>
+                  <Copy size={15} /> Copy Link
+                </button>
               </div>
-              {checked.map(item => <ItemRow key={safe.indexOf(item)} item={item} idx={safe.indexOf(item)} />)}
-            </div>
+            </>
           )}
-          <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-            <button onClick={shareWhatsApp} className="solid-btn" style={{ flex: 1, background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}><Send size={15} /> WhatsApp</button>
-            <button onClick={copyLink} className="outline-btn" style={{ flex: 1 }}><Copy size={15} /> Copy Link</button>
-          </div>
+
+          {/* Add Items FAB — sticky at bottom of content */}
+          <button
+            onClick={() => { setShowCatalog(true); setCatalogSection(null); setCatalogSearch(''); }}
+            className="solid-btn"
+            style={{ position: 'sticky', bottom: '12px', borderRadius: '18px', padding: '15px', fontSize: '0.95rem', fontWeight: 800, boxShadow: '0 6px 28px rgba(99,102,241,0.4)', zIndex: 10 }}>
+            <Plus size={20} /> Add Items
+          </button>
         </>
       )}
 
-      {/* ── ADD ITEMS FAB ──────────────────────────────────────────────────── */}
-      <button onClick={() => { setShowCatalog(true); setCatalogSection(null); setCatalogSearch(''); }}
-        className="solid-btn"
-        style={{ position: 'sticky', bottom: '12px', borderRadius: '18px', padding: '15px', fontSize: '0.95rem', fontWeight: 800, boxShadow: '0 6px 28px rgba(99,102,241,0.4)', zIndex: 10 }}>
-        <Plus size={20} /> Add Items
-      </button>
+      {/* ══════════════════════════════════════════════════════════════════════
+          SHOPPING MODE
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mode === 'shopping' && (
+        <>
+          {/* Summary card */}
+          <div style={{
+            background: 'linear-gradient(135deg, #0d1f2d 0%, #0f172a 100%)',
+            border: `1px solid ${allDone ? 'rgba(16,185,129,0.45)' : 'rgba(99,102,241,0.3)'}`,
+            borderRadius: '20px', padding: '20px', transition: 'border-color 0.4s'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '5px' }}>
+                  Shopping Mode
+                </div>
+                <div style={{ fontFamily: 'var(--font-title)', fontSize: '1.7rem', fontWeight: 800, color: '#fff', lineHeight: 1.1 }}>
+                  {allDone ? '🎉 All Done!' : `${unchecked.length} left`}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '5px' }}>
+                  {allDone
+                    ? 'Great shopping trip! 🏆'
+                    : 'Tap Bought when you pick up each item'}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontFamily: 'var(--font-title)', fontSize: '2rem', fontWeight: 900, color: allDone ? '#10b981' : '#a5b4fc', lineHeight: 1 }}>
+                  {boughtCount}/{safe.length}
+                </div>
+                <div style={{ fontSize: '0.62rem', color: '#64748b', marginTop: '2px' }}>bought</div>
+              </div>
+            </div>
+
+            {safe.length > 0 && (
+              <div style={{ marginTop: '14px' }}>
+                <div style={{ height: '7px', background: 'rgba(255,255,255,0.07)', borderRadius: '99px', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${(boughtCount / safe.length) * 100}%`,
+                    background: allDone ? 'linear-gradient(90deg,#059669,#10b981)' : 'linear-gradient(90deg,#4f46e5,#6366f1)',
+                    borderRadius: '99px',
+                    transition: 'width 0.4s ease, background 0.4s ease'
+                  }} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Show/hide bought toggle — only show when some are bought */}
+          {boughtCount > 0 && !allDone && (
+            <button
+              onClick={() => setShowBought(v => !v)}
+              style={{
+                background: 'none', border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '12px', padding: '10px 14px',
+                color: '#64748b', fontSize: '0.78rem', fontWeight: 700,
+                cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.2s'
+              }}>
+              {showBought ? '▼ Hide bought items' : '▶ Show bought items'} ({boughtCount})
+            </button>
+          )}
+
+          {/* Empty state */}
+          {safe.length === 0 && (
+            <div className="glass-card" style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <ShoppingBag size={36} style={{ margin: '0 auto 12px', opacity: 0.15, display: 'block' }} />
+              <p style={{ fontSize: '0.85rem', color: '#64748b', lineHeight: 1.6 }}>
+                Your list is empty.<br />
+                Switch to <strong>Planning</strong> to add items first.
+              </p>
+            </div>
+          )}
+
+          {/* Shopping item rows */}
+          {shoppingItems.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {shoppingItems.map(item => {
+                const idx = safe.indexOf(item);
+                return (
+                  <div key={idx} style={{
+                    display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px',
+                    background: item.checked ? 'rgba(16,185,129,0.05)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${item.checked ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                    borderRadius: '18px', transition: 'all 0.2s',
+                    opacity: item.checked ? 0.65 : 1,
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '0.92rem', fontWeight: 700,
+                        textDecoration: item.checked ? 'line-through' : 'none',
+                        color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                      }}>
+                        {item.name}
+                      </div>
+                      <div style={{ fontSize: '0.66rem', color: '#64748b', marginTop: '3px' }}>
+                        {storeEmoji(item.store || '')} {item.store || 'Walmart'}
+                        &nbsp;·&nbsp;{CATEGORIES[item.category || 'other']?.icon} {CATEGORIES[item.category || 'other']?.label}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onToggleItem(idx)}
+                      style={{
+                        padding: '10px 18px', borderRadius: '14px', border: 'none',
+                        cursor: 'pointer', fontWeight: 800, fontSize: '0.8rem', flexShrink: 0,
+                        background: item.checked ? 'rgba(16,185,129,0.18)' : '#6366f1',
+                        color: item.checked ? '#10b981' : '#fff',
+                        transition: 'all 0.2s',
+                      }}>
+                      {item.checked ? '✓ Bought' : 'Bought'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Switch to planning hint */}
+          {safe.length > 0 && (
+            <button
+              onClick={() => setMode('planning')}
+              style={{
+                background: 'none', border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: '14px', padding: '13px', color: '#64748b',
+                fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', textAlign: 'center'
+              }}>
+              <Plus size={13} style={{ display: 'inline', marginRight: '5px' }} />
+              Add more items (switch to Planning)
+            </button>
+          )}
+        </>
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════════
           CATALOG SHEET
+          FIX: overflow:hidden on sheet so header/Back stays visible
       ═══════════════════════════════════════════════════════════════════ */}
       {showCatalog && (
-        <div className="drawer-overlay" onClick={() => setShowCatalog(false)}>
-          <div className="drawer-sheet" style={{ maxHeight: '92vh' }} onClick={e => e.stopPropagation()}>
+        <div className="drawer-overlay" onClick={closeCatalog}>
+          {/* overflow:hidden — header never scrolls away; inner list scrolls */}
+          <div className="drawer-sheet" style={{ maxHeight: '92vh', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
             <div className="drawer-drag-handle" />
 
             {/* Header */}
             <div className="drawer-header">
               {catalogSection ? (
-                <button onClick={() => { setCatalogSection(null); setCatalogSearch(''); }}
+                <button
+                  onClick={() => { setCatalogSection(null); setCatalogSearch(''); }}
                   style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '6px 10px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
                   <ArrowLeft size={16} /> Back
                 </button>
@@ -341,18 +552,26 @@ export default function ShoppingList({
                   <ShoppingBag size={18} className="text-primary" /> Add Items
                 </h3>
               )}
-              <button onClick={() => setShowCatalog(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={20} /></button>
+              <button onClick={closeCatalog} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
             </div>
 
             {/* Search bar */}
-            <div style={{ position: 'relative', marginBottom: '14px' }}>
+            <div style={{ position: 'relative', marginBottom: '14px', flexShrink: 0 }}>
               <Search size={15} style={{ position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
               <input type="text" placeholder="Search any item..." value={catalogSearch}
-                onChange={e => { setCatalogSearch(e.target.value); if (e.target.value) setCatalogSection('__search__'); else if (catalogSection === '__search__') setCatalogSection(null); }}
+                onChange={e => {
+                  setCatalogSearch(e.target.value);
+                  if (e.target.value) setCatalogSection('__search__');
+                  else if (catalogSection === '__search__') setCatalogSection(null);
+                }}
                 className="input-element" style={{ paddingLeft: '38px', paddingRight: catalogSearch ? '36px' : '14px' }} />
               {catalogSearch && (
                 <button onClick={() => { setCatalogSearch(''); setCatalogSection(null); }}
-                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={14} /></button>
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
+                  <X size={14} />
+                </button>
               )}
             </div>
 
@@ -414,7 +633,7 @@ export default function ShoppingList({
                 </div>
 
                 {/* Scan with camera */}
-                <button onClick={() => { setShowScanner(true); setShowCatalog(false); }}
+                <button onClick={() => { setShowScanner(true); closeCatalog(); }}
                   className="outline-btn" style={{ width: '100%', justifyContent: 'center', marginTop: '10px', borderRadius: '14px' }}>
                   <Camera size={16} /> Scan item with camera
                 </button>
@@ -427,7 +646,7 @@ export default function ShoppingList({
 
                 {/* Section title */}
                 {catalogSection && catalogSection !== '__search__' && !catalogSearch && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexShrink: 0 }}>
                     <span style={{ fontSize: '1.3rem' }}>{CATEGORIES[catalogSection]?.icon}</span>
                     <span style={{ fontFamily: 'var(--font-title)', fontSize: '1rem', fontWeight: 800 }}>{CATEGORIES[catalogSection]?.label}</span>
                     <span style={{ fontSize: '0.68rem', color: '#64748b', marginLeft: 'auto' }}>{catalogItems.length} items</span>
@@ -436,7 +655,7 @@ export default function ShoppingList({
 
                 {/* A–Z shortcuts */}
                 {letters.length > 1 && !catalogSearch && (
-                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '10px', padding: '8px 10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '10px', padding: '8px 10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', flexShrink: 0 }}>
                     <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', alignSelf: 'center', marginRight: '2px' }}>JUMP:</span>
                     {letters.map(l => (
                       <button key={l} onClick={() => scrollToLetter(l)}
@@ -447,24 +666,22 @@ export default function ShoppingList({
                   </div>
                 )}
 
-                {/* Items scrollable */}
+                {/* Items scrollable — this is the ONLY thing that scrolls */}
                 <div style={{ overflowY: 'auto', flex: 1 }}>
                   {catalogSearch && catalogItems.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '32px', color: '#64748b', fontSize: '0.82rem' }}>No items found for "{catalogSearch}"</div>
+                    <div style={{ textAlign: 'center', padding: '32px', color: '#64748b', fontSize: '0.82rem' }}>
+                      No items found for "{catalogSearch}"
+                    </div>
                   )}
 
                   {catalogSearch ? (
-                    // Search results — flat list with category badges
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                       {catalogItems.map((item, i) => {
                         const inList = safe.some(s => s.name.toLowerCase() === item.name.toLowerCase() && !s.checked);
-                        return (
-                          <CatalogRow key={i} item={item} inList={inList} onAdd={addCatalogItem} />
-                        );
+                        return <CatalogRow key={i} item={item} inList={inList} onAdd={addCatalogItem} />;
                       })}
                     </div>
                   ) : (
-                    // Grouped by letter
                     letters.map(letter => (
                       <div key={letter}>
                         <div ref={el => { letterRefs.current[letter] = el; }}
@@ -488,7 +705,7 @@ export default function ShoppingList({
         </div>
       )}
 
-      {/* ── EDIT MODAL ─────────────────────────────────────────────────────── */}
+      {/* ── EDIT MODAL ────────────────────────────────────────────────────── */}
       {editIdx !== null && (
         <div className="drawer-overlay" onClick={() => setEditIdx(null)}>
           <div className="drawer-sheet" onClick={e => e.stopPropagation()}>
@@ -501,7 +718,15 @@ export default function ShoppingList({
               <div className="input-group">
                 <label>Item Name</label>
                 <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { editIdx === 'scanned' ? (() => { onAddItem({ name: editName.trim(), checked: false, store: editStore, category: editCat }); showToast?.(`"${editName}" added ✓`); setEditIdx(null); })() : saveEdit(); } }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      if (editIdx === 'scanned') {
+                        onAddItem({ name: editName.trim(), checked: false, store: editStore, category: editCat });
+                        showToast?.(`"${editName}" added ✓`);
+                        setEditIdx(null);
+                      } else { saveEdit(); }
+                    }
+                  }}
                   className="input-element" autoFocus />
               </div>
               <div>
@@ -531,15 +756,17 @@ export default function ShoppingList({
                   onAddItem({ name: editName.trim(), checked: false, store: editStore, category: editCat });
                   showToast?.(`"${editName}" added ✓`);
                   try { confetti({ particleCount: 60, spread: 50, origin: { y: 0.85 }, colors: ['#6366f1', '#10b981'] }); } catch (_) {}
-                } else saveEdit();
+                } else { saveEdit(); }
                 setEditIdx(null);
-              }} className="solid-btn"><Check size={18} /> {editIdx === 'scanned' ? 'Confirm & Add' : 'Save'}</button>
+              }} className="solid-btn">
+                <Check size={18} /> {editIdx === 'scanned' ? 'Confirm & Add' : 'Save'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── CAMERA SCANNER ─────────────────────────────────────────────────── */}
+      {/* ── CAMERA SCANNER ──────────────────────────────────────────────── */}
       {showScanner && (
         <div className="drawer-overlay" onClick={() => { stopCamera(); setShowScanner(false); }}>
           <div className="drawer-sheet" onClick={e => e.stopPropagation()}>
@@ -572,7 +799,12 @@ export default function ShoppingList({
                   )}
                   <button onClick={() => fileInputRef.current?.click()} className="outline-btn" style={{ flex: 1 }}>Upload</button>
                   <input ref={fileInputRef} type="file" accept="image/*"
-                    onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => processImage(r.result.split(',')[1]); r.readAsDataURL(f); e.target.value = ''; }}
+                    onChange={e => {
+                      const f = e.target.files?.[0]; if (!f) return;
+                      const r = new FileReader();
+                      r.onload = () => processImage(r.result.split(',')[1]);
+                      r.readAsDataURL(f); e.target.value = '';
+                    }}
                     style={{ display: 'none' }} />
                   <canvas ref={canvasRef} style={{ display: 'none' }} />
                 </div>
@@ -590,7 +822,7 @@ export default function ShoppingList({
   );
 }
 
-// ── Catalog row (extracted as stable component to avoid re-render issues) ─────
+// ── Catalog row ──────────────────────────────────────────────────────────────
 function CatalogRow({ item, inList, onAdd }) {
   const cat = CATEGORIES[item.cat] || CATEGORIES.other;
   return (
@@ -608,7 +840,7 @@ function CatalogRow({ item, inList, onAdd }) {
       <span style={{ flex: 1, fontSize: '0.88rem', fontWeight: 600 }}>{item.name}</span>
       {inList
         ? <Check size={16} style={{ color: '#10b981', flexShrink: 0 }} />
-        : <Plus size={16} style={{ color: '#6366f1', flexShrink: 0 }} />
+        : <Plus  size={16} style={{ color: '#6366f1', flexShrink: 0 }} />
       }
     </div>
   );
