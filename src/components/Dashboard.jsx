@@ -12,6 +12,7 @@ export default function Dashboard({
   const [quickAddName, setQuickAddName] = useState('');
   const [editBudgetOpen, setEditBudgetOpen] = useState(false);
   const [editBudgetVal, setEditBudgetVal] = useState(budget.toString());
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const safeShoppingList = (Array.isArray(shoppingList) ? shoppingList : []).filter(
     item => item && typeof item === 'object' && typeof item.name === 'string'
@@ -238,39 +239,61 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* Sector Breakdown */}
-      <div className="glass-card">
-        <h2 className="section-title">
-          <TrendingUp size={18} className="text-emerald" /> {currentMonthLabel} Breakdown
-        </h2>
-        <p style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '12px', marginTop: '-6px' }}>
-          💡 Tap any category to view its detailed item timeline
-        </p>
-        <div className="category-bars">
-          {Object.entries(CATEGORIES).map(([key, value]) => {
-            const amount = categoryTotals[key] || 0;
-            const percentage = totalSpent > 0 ? (amount / totalSpent) * 100 : 0;
-            return (
-              <div
-                className="cat-bar-item" key={key}
-                onClick={() => onSelectCategory(key)}
-                style={{ cursor: 'pointer', padding: '4px', borderRadius: '8px', transition: 'background 0.2s ease' }}
-              >
-                <div className="cat-bar-meta">
-                  <span className="cat-bar-title">
-                    <span>{value.icon}</span><span>{value.label}</span>
-                  </span>
-                  <span style={{ color: amount > 0 ? '#fff' : '#64748b' }}>
-                    ${amount.toFixed(2)} ({percentage.toFixed(0)}%)
-                  </span>
-                </div>
-                <div className="cat-bar-bg">
-                  <div className="cat-bar-fill" style={{ width: `${percentage}%`, background: value.gradient }} />
-                </div>
-              </div>
-            );
-          })}
+      {/* Sector Breakdown — collapsed by default, expand on tap */}
+      <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        {/* Header row — always visible, acts as toggle */}
+        <div
+          onClick={() => setBreakdownOpen(v => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '16px 18px', cursor: 'pointer', userSelect: 'none',
+          }}
+        >
+          <h2 className="section-title" style={{ marginBottom: 0 }}>
+            <TrendingUp size={18} className="text-emerald" /> {currentMonthLabel} Breakdown
+          </h2>
+          <span style={{
+            fontSize: '0.7rem', fontWeight: 800, color: '#64748b',
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '8px', padding: '4px 9px', flexShrink: 0,
+          }}>
+            {breakdownOpen ? '▲ Hide' : '▼ Show'}
+          </span>
         </div>
+
+        {/* Expandable body */}
+        {breakdownOpen && (
+          <div style={{ padding: '0 18px 18px' }}>
+            <p style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '12px', marginTop: '-4px' }}>
+              💡 Tap any category to view its detailed item timeline
+            </p>
+            <div className="category-bars">
+              {Object.entries(CATEGORIES).map(([key, value]) => {
+                const amount = categoryTotals[key] || 0;
+                const percentage = totalSpent > 0 ? (amount / totalSpent) * 100 : 0;
+                return (
+                  <div
+                    className="cat-bar-item" key={key}
+                    onClick={e => { e.stopPropagation(); onSelectCategory(key); }}
+                    style={{ cursor: 'pointer', padding: '4px', borderRadius: '8px', transition: 'background 0.2s ease' }}
+                  >
+                    <div className="cat-bar-meta">
+                      <span className="cat-bar-title">
+                        <span>{value.icon}</span><span>{value.label}</span>
+                      </span>
+                      <span style={{ color: amount > 0 ? '#fff' : '#64748b' }}>
+                        ${amount.toFixed(2)} ({percentage.toFixed(0)}%)
+                      </span>
+                    </div>
+                    <div className="cat-bar-bg">
+                      <div className="cat-bar-fill" style={{ width: `${percentage}%`, background: value.gradient }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Budget Edit — compact centered modal so keyboard never hides the input */}

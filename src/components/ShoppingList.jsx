@@ -225,11 +225,12 @@ export default function ShoppingList({
   const [customPhoto,    setCustomPhoto]    = useState(null);
   const [showCustomForm, setShowCustomForm] = useState(false);
 
-  const [editIdx,   setEditIdx]   = useState(null);
-  const [editName,  setEditName]  = useState('');
-  const [editStore, setEditStore] = useState('');
-  const [editCat,   setEditCat]   = useState('');
-  const [editPhoto, setEditPhoto] = useState(null);
+  const [editIdx,      setEditIdx]      = useState(null);
+  const [editName,     setEditName]     = useState('');
+  const [editStore,    setEditStore]    = useState('');
+  const [editCat,      setEditCat]      = useState('');
+  const [editPhoto,    setEditPhoto]    = useState(null);
+  const [scanSearch,   setScanSearch]   = useState('');   // catalog search inside scan modal
 
   const [showScanner,  setShowScanner]  = useState(false);
   const [streamActive, setStreamActive] = useState(false);
@@ -378,6 +379,20 @@ export default function ShoppingList({
   };
 
   const scrollToLetter = (l) => letterRefs.current[l]?.scrollIntoView({ behavior:'smooth', block:'start' });
+
+  // Search all CATALOG sections — used by scan confirmation modal
+  const searchCatalog = (q) => {
+    if (!q.trim()) return [];
+    const lower = q.toLowerCase();
+    const results = [];
+    Object.entries(CATALOG).forEach(([cat, names]) => {
+      names.forEach(name => { if (name.toLowerCase().includes(lower)) results.push({ name, cat }); });
+    });
+    return results.slice(0, 8);
+  };
+
+  // Close edit modal and clear scan search
+  const closeEdit = () => { setEditIdx(null); setScanSearch(''); };
 
   const toggleStyle = (active) => ({
     flex: 1, padding: '10px', borderRadius: '12px', border: 'none',
@@ -762,32 +777,104 @@ export default function ShoppingList({
         </div>
       )}
 
-      {/* ── EDIT MODAL ──────────────────────────────────────────────────────── */}
+      {/* ── EDIT / SCAN-CONFIRM MODAL ────────────────────────────────────── */}
       {editIdx !== null && (
-        <div className="drawer-overlay" onClick={() => setEditIdx(null)}>
+        <div className="drawer-overlay" onClick={closeEdit}>
           <div className="drawer-sheet" onClick={e => e.stopPropagation()}>
             <div className="drawer-drag-handle" />
             <div className="drawer-header">
               <h3>{editIdx === 'scanned' ? '🔍 Confirm Scanned Item' : '✏️ Edit Item'}</h3>
-              <button onClick={() => setEditIdx(null)}
+              <button onClick={closeEdit}
                 style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'12px', color:'#94a3b8', cursor:'pointer', width:'44px', height:'44px', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <X size={20} />
               </button>
             </div>
+
             <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+
+              {/* ── Name field ── */}
               <div className="input-group">
                 <label>Item Name</label>
                 <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { editIdx === 'scanned' ? (() => { onAddItem({ name: editName.trim(), checked: false, store: editStore, category: editCat, photo: editPhoto }); showToast?.(`"${editName}" added ✓`); setEditIdx(null); })() : saveEdit(); } }}
+                  onKeyDown={e => {
+                    if (e.key !== 'Enter') return;
+                    if (editIdx === 'scanned') {
+                      onAddItem({ name: editName.trim(), checked: false, store: editStore, category: editCat, photo: editPhoto });
+                      showToast?.(`"${editName}" added ✓`);
+                      closeEdit();
+                    } else { saveEdit(); }
+                  }}
                   className="input-element" autoFocus />
               </div>
 
-              {/* Photo picker in edit modal */}
+              {/* ── Catalog assign (scan mode only) ── */}
+              {editIdx === 'scanned' && (
+                <div>
+                  {/* divider */}
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+                    <div style={{ flex:1, height:'1px', background:'rgba(255,255,255,0.06)' }} />
+                    <span style={{ fontSize:'0.62rem', fontWeight:800, color:'#64748b', letterSpacing:'0.05em', flexShrink:0 }}>
+                      OR ASSIGN FROM CATALOG
+                    </span>
+                    <div style={{ flex:1, height:'1px', background:'rgba(255,255,255,0.06)' }} />
+                  </div>
+
+                  {/* search bar */}
+                  <div style={{ position:'relative' }}>
+                    <Search size={14} style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', color:'#64748b', pointerEvents:'none' }} />
+                    <input
+                      type="text" placeholder="Search catalog items…"
+                      value={scanSearch} onChange={e => setScanSearch(e.target.value)}
+                      className="input-element"
+                      style={{ paddingLeft:'36px', paddingRight: scanSearch ? '34px' : '12px' }}
+                    />
+                    {scanSearch && (
+                      <button onClick={() => setScanSearch('')}
+                        style={{ position:'absolute', right:'8px', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'#64748b', cursor:'pointer', padding:'6px' }}>
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* results */}
+                  {scanSearch.trim() && (() => {
+                    const hits = searchCatalog(scanSearch);
+                    return hits.length > 0 ? (
+                      <div style={{ display:'flex', flexDirection:'column', gap:'4px', marginTop:'8px', maxHeight:'180px', overflowY:'auto' }}>
+                        {hits.map((item, i) => (
+                          <button key={i} type="button"
+                            onClick={() => {
+                              setEditName(item.name);
+                              setEditCat(item.cat);
+                              setEditStore(DEFAULT_STORE[item.cat] || 'Walmart');
+                              setScanSearch('');
+                              showToast?.(`Assigned "${item.name}" ✓`);
+                            }}
+                            style={{ display:'flex', alignItems:'center', gap:'10px', padding:'11px 13px', background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.22)', borderRadius:'12px', cursor:'pointer', textAlign:'left', width:'100%', transition:'background 0.15s' }}>
+                            <span style={{ fontSize:'1.15rem', flexShrink:0 }}>{getItemIcon(item.name, item.cat)}</span>
+                            <span style={{ flex:1, fontSize:'0.86rem', fontWeight:700, color:'#e2e8f0' }}>{item.name}</span>
+                            <span style={{ fontSize:'0.62rem', color:'#818cf8', fontWeight:800, flexShrink:0, background:'rgba(99,102,241,0.15)', padding:'3px 7px', borderRadius:'6px' }}>
+                              {CATEGORIES[item.cat]?.label}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize:'0.75rem', color:'#64748b', textAlign:'center', padding:'10px 0', marginTop:'4px' }}>
+                        No matches — just edit the name above
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* ── Photo ── */}
               <div>
                 <label style={{ fontSize:'0.7rem', fontWeight:700, color:'var(--slate-text)', display:'block', marginBottom:'8px' }}>PHOTO (helps identify at the store)</label>
                 <PhotoPicker photo={editPhoto} onPhoto={setEditPhoto} label="Add photo" />
               </div>
 
+              {/* ── Category ── */}
               <div>
                 <label style={{ fontSize:'0.7rem', fontWeight:700, color:'var(--slate-text)', display:'block', marginBottom:'8px' }}>CATEGORY</label>
                 <div className="cat-chips-scroll">
@@ -799,6 +886,8 @@ export default function ShoppingList({
                   ))}
                 </div>
               </div>
+
+              {/* ── Store ── */}
               <div>
                 <label style={{ fontSize:'0.7rem', fontWeight:700, color:'var(--slate-text)', display:'block', marginBottom:'8px' }}>STORE</label>
                 <div className="cat-chips-scroll">
@@ -810,13 +899,15 @@ export default function ShoppingList({
                   ))}
                 </div>
               </div>
+
+              {/* ── Confirm / Save ── */}
               <button onClick={() => {
                 if (editIdx === 'scanned') {
                   onAddItem({ name: editName.trim(), checked: false, store: editStore, category: editCat, photo: editPhoto });
                   showToast?.(`"${editName}" added ✓`);
                   try { confetti({ particleCount: 60, spread: 50, origin: { y: 0.85 }, colors: ['#6366f1','#10b981'] }); } catch (_) {}
                 } else { saveEdit(); }
-                setEditIdx(null);
+                closeEdit();
               }} className="solid-btn">
                 <Check size={18} /> {editIdx === 'scanned' ? 'Confirm & Add' : 'Save'}
               </button>
