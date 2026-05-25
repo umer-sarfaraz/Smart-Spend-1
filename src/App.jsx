@@ -509,7 +509,7 @@ export default function App() {
           className={`nav-item ${activeTab === 'history' ? 'active' : ''}`}
         >
           <HistoryIcon size={22} />
-          <span style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Ledger</span>
+          <span style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Reports</span>
           {activeTab === 'history' && <div className="nav-item-indicator" />}
         </button>
 
