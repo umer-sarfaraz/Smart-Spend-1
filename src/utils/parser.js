@@ -350,12 +350,19 @@ REQUIRED OUTPUT FORMAT — return ONLY this JSON structure, nothing else:
     body: JSON.stringify({ base64Image, mimeType, prompt })
   });
 
+  const body = await response.json().catch(() => ({}));
+
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error || 'AI service failed');
+    // Include raw response in error so Scanner can display it for debugging
+    throw new Error(body.error || `API error ${response.status}`);
   }
 
-  return await response.json();
+  // Validate the result has the expected shape
+  if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
+    throw new Error(`Gemini returned no items. Raw: ${body.raw || JSON.stringify(body).slice(0, 200)}`);
+  }
+
+  return body;
 }
 
 // Shared store hints for the text-based parser (used as fallback)

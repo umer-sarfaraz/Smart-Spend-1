@@ -134,6 +134,7 @@ export default function Scanner({ onClose, onSave }) {
         setUsedAI(true);
       } catch (visionErr) {
         console.warn('Gemini Vision failed:', visionErr.message);
+        setStatusMessage(`AI failed: ${visionErr.message} — trying OCR fallback...`);
 
         // ── TIER 2 + 3: Tesseract OCR → try Gemini Text, then offline ────
         let rawText = '';

@@ -41,7 +41,19 @@ export default async function handler(req, res) {
     const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!resultText) throw new Error('Empty response from Gemini');
 
-    return res.status(200).json(JSON.parse(resultText.trim()));
+    // Gemini sometimes wraps JSON in markdown code fences — strip them
+    let cleaned = resultText.trim();
+    cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      // Return a structured error so the client sees the raw text for debugging
+      return res.status(500).json({ error: `JSON parse failed: ${parseErr.message}`, raw: cleaned.slice(0, 500) });
+    }
+
+    return res.status(200).json(parsed);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
