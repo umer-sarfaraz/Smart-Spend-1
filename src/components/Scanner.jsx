@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { createWorker } from 'tesseract.js';
-import { CATEGORIES, parseOcrTextOffline, parseWithGemini, parseTextWithGemini } from '../utils/parser';
+import { CATEGORIES, parseWithGemini } from '../utils/parser';
 import { Camera, FileImage, Sparkles, Check, X, Plus, Trash2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -28,6 +27,7 @@ export default function Scanner({ onClose, onSave }) {
   const [parsedData, setParsedData] = useState(null);
   const [scanCount, setScanCount] = useState(0);
   const [usedAI, setUsedAI] = useState(false);
+  const [lastErrorMsg, setLastErrorMsg] = useState('');
   const [storeType, setStoreType] = useState('general');
 
   const videoRef = useRef(null);
@@ -69,12 +69,12 @@ export default function Scanner({ onClose, onSave }) {
     }
   };
 
-  // Resize image for Gemini Vision — higher quality than before so small receipt text is sharp
-  // 2400px / JPEG 0.92 keeps text crisp while staying under Vercel's body limit
+  // Keep image under ~1MB so it fits well within Vercel's 4.5MB body limit
+  // 1600px long-edge, JPEG 0.82 = roughly 200-800KB depending on content
   const compressImage = (dataUrl) => new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 2400;
+      const MAX = 1600;
       let { width, height } = img;
       if (width > MAX || height > MAX) {
         if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
@@ -83,7 +83,7 @@ export default function Scanner({ onClose, onSave }) {
       const c = document.createElement('canvas');
       c.width = width; c.height = height;
       c.getContext('2d').drawImage(img, 0, 0, width, height);
-      resolve(c.toDataURL('image/jpeg', 0.92).split(',')[1]);
+      resolve(c.toDataURL('image/jpeg', 0.82).split(',')[1]);
     };
     img.src = dataUrl;
   });
@@ -111,96 +111,61 @@ export default function Scanner({ onClose, onSave }) {
     e.target.value = '';
   };
 
-  // ─── PROCESSING PIPELINE ────────────────────────────────────────────────────
-  // Tier 1: Gemini Vision (image → JSON directly) — most accurate, reads actual image
-  // Tier 2: Tesseract OCR → Gemini Text           — if vision API is down
-  // Tier 3: Tesseract OCR → Offline regex         — fully offline fallback
-  // Tier 4: Empty form                             — manual entry
+  // ─── PROCESSING PIPELINE ─────────────────────────────────────────────────
+  // Tier 1: Gemini Vision (image → JSON directly)  — primary, reads actual photo
+  // Tier 2: Blank manual form with error message   — fallback when AI fails
   //
-  // WHY Vision first: Tesseract badly mangles thermal receipt fonts/layouts.
-  // Gemini Vision sees the original image and reads text far more accurately.
+  // NOTE: Tesseract OCR was removed. It produces heavily garbled text on
+  // thermal receipt fonts. Garbled OCR → garbled item names even after AI
+  // text parsing. A clean blank form is far better than garbage names.
   const processCapturedImage = async (base64, mimeType) => {
     stopCamera();
     setScanMode('processing');
     setUsedAI(false);
+    setLastErrorMsg('');
 
+    let newResult = null;
+
+    // ── TIER 1: Gemini Vision reads the image directly ───────────────────
     try {
-      let newResult = null;
+      setStatusMessage('AI reading receipt...');
+      newResult = await parseWithGemini(base64, mimeType, storeType);
+      setUsedAI(true);
+    } catch (visionErr) {
+      console.warn('Gemini Vision failed:', visionErr.message);
+      const friendly = friendlyError(visionErr.message);
+      setLastErrorMsg(friendly);
+      setStatusMessage(`Scan failed: ${friendly}`);
+    }
 
-      // ── TIER 1: Gemini Vision reads the image directly ───────────────────
-      try {
-        setStatusMessage('AI reading receipt...');
-        newResult = await parseWithGemini(base64, mimeType, storeType);
-        setUsedAI(true);
-      } catch (visionErr) {
-        console.warn('Gemini Vision failed:', visionErr.message);
-        setStatusMessage(`AI failed: ${visionErr.message} — trying OCR fallback...`);
-
-        // ── TIER 2 + 3: Tesseract OCR → try Gemini Text, then offline ────
-        let rawText = '';
-        try {
-          setStatusMessage('Reading text with OCR...');
-          const worker = await createWorker('eng', 1, {
-            logger: m => {
-              if (m.status === 'recognizing text') {
-                setStatusMessage(`OCR reading... ${Math.round((m.progress || 0) * 100)}%`);
-              }
-            }
-          });
-          const { data: { text } } = await worker.recognize(`data:${mimeType};base64,${base64}`);
-          await worker.terminate();
-          rawText = text.trim();
-        } catch (ocrErr) {
-          console.warn('Tesseract OCR failed:', ocrErr.message);
-        }
-
-        if (rawText.length > 40) {
-          // Tier 2: OCR text → Gemini text parser
-          try {
-            setStatusMessage('AI parsing text...');
-            newResult = await parseTextWithGemini(rawText, storeType);
-            setUsedAI(true);
-          } catch (textErr) {
-            // Tier 3: OCR text → offline regex
-            setStatusMessage('Parsing offline...');
-            newResult = parseOcrTextOffline(rawText);
-            if (!newResult.items.length ||
-                (newResult.items.length === 1 && newResult.items[0].name === 'General Purchase')) {
-              newResult.items = [{ name: '', amount: 0, category: 'other' }];
-            }
-          }
-        }
-      }
-
-      // ── TIER 4: Nothing worked → blank form ──────────────────────────────
-      if (!newResult) {
-        newResult = {
-          merchant: 'Scanned Receipt',
-          date: new Date().toISOString().split('T')[0],
-          isGasMeter: false,
-          items: [{ name: '', amount: 0, category: 'other' }]
-        };
-      }
-
-      const newCount = scanCount + 1;
-      setScanCount(newCount);
-      setParsedData(prev => {
-        if (prev && newCount > 1) return { ...prev, items: [...prev.items, ...newResult.items] };
-        return newResult;
-      });
-      setScanMode('review');
-
-    } catch (err) {
-      console.error('Processing pipeline failed:', err);
-      setStatusMessage('Scan failed — fill in manually below.');
-      setParsedData(prev => prev || {
+    // ── TIER 2: Blank form (clean slate for manual entry) ────────────────
+    if (!newResult) {
+      newResult = {
         merchant: 'Scanned Receipt',
         date: new Date().toISOString().split('T')[0],
         isGasMeter: false,
         items: [{ name: '', amount: 0, category: 'other' }]
-      });
-      setScanMode('review');
+      };
     }
+
+    const newCount = scanCount + 1;
+    setScanCount(newCount);
+    setParsedData(prev => {
+      if (prev && newCount > 1) return { ...prev, items: [...prev.items, ...newResult.items] };
+      return newResult;
+    });
+    setScanMode('review');
+  };
+
+  // Convert technical API errors to readable messages for the review badge
+  const friendlyError = (msg = '') => {
+    if (/413|too large|payload/i.test(msg))       return 'Image too large — try closer photo';
+    if (/503|not configured/i.test(msg))           return 'AI service not set up on server';
+    if (/429|quota|rate limit/i.test(msg))         return 'AI quota reached — try again later';
+    if (/no items|empty/i.test(msg))               return 'AI found no items — try better lighting';
+    if (/fetch|network|failed to fetch/i.test(msg)) return 'Network error — check connection';
+    if (/json parse/i.test(msg))                   return 'AI response malformed — try again';
+    return msg.length > 70 ? msg.slice(0, 70) + '…' : msg;
   };
 
   const handleItemChange = (index, field, value) => {
@@ -349,10 +314,16 @@ export default function Scanner({ onClose, onSave }) {
         {scanMode === 'review' && parsedData && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
-            {/* AI vs OCR badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', background: usedAI ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)', border: `1px solid ${usedAI ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}`, borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700, color: usedAI ? '#34d399' : '#fbbf24' }}>
-              <span>{usedAI ? '✦ Gemini AI' : '⚠ Offline Parser'}</span>
-              <span style={{ fontWeight: 400, opacity: 0.8 }}>{usedAI ? '— OCR + AI text analysis' : '— No internet or AI unavailable, check items'}</span>
+            {/* AI success / failure badge */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', padding: '7px 12px', background: usedAI ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)', border: `1px solid ${usedAI ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}`, borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700, color: usedAI ? '#34d399' : '#fbbf24' }}>
+              <span style={{ flexShrink: 0 }}>{usedAI ? '✦ Gemini AI' : '⚠ Scan Failed'}</span>
+              <span style={{ fontWeight: 400, opacity: 0.85, lineHeight: 1.4 }}>
+                {usedAI
+                  ? '— Items extracted automatically, review & confirm'
+                  : lastErrorMsg
+                    ? `— ${lastErrorMsg}`
+                    : '— Could not read receipt, fill in items manually'}
+              </span>
             </div>
 
             {/* Multi-scan tip */}
