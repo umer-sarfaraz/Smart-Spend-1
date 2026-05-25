@@ -3,8 +3,8 @@
 const MODELS = [
   { id: 'gemini-2.0-flash',      api: 'v1beta' },
   { id: 'gemini-2.0-flash-lite', api: 'v1beta' },
+  { id: 'gemini-1.5-flash-8b',   api: 'v1beta' },
   { id: 'gemini-1.5-flash',      api: 'v1'     },
-  { id: 'gemini-1.5-flash-8b',   api: 'v1'     },
 ];
 
 export default async function handler(req, res) {
