@@ -1,8 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createWorker } from 'tesseract.js';
-import { CATEGORIES, DEMO_RECEIPTS, parseOcrTextOffline, parseWithGemini } from '../utils/parser';
-import { Camera, FileImage, Sparkles, Check, X, Info, Plus, Trash2 } from 'lucide-react';
+import { CATEGORIES, parseOcrTextOffline, parseWithGemini } from '../utils/parser';
+import { Camera, FileImage, Sparkles, Check, X, Plus, Trash2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+
+// Store types for AI prompt tailoring
+const STORE_TYPES = [
+  { id: 'general',          label: 'Any Store',         icon: '🏬' },
+  { id: 'restaurant_depot', label: 'Restaurant Depot',  icon: '🏭' },
+  { id: 'costco',           label: 'Costco',            icon: '📦' },
+  { id: 'walmart',          label: 'Walmart',           icon: '🛒' },
+  { id: 'lotte',            label: 'Lotte Plaza',       icon: '🏮' },
+  { id: 'halal',            label: 'Halal Store',       icon: '🥩' },
+  { id: 'gas',              label: 'Gas Station',       icon: '⛽' },
+];
 
 export default function Scanner({ onClose, onSave }) {
   const [streamActive, setStreamActive] = useState(false);
@@ -17,6 +28,7 @@ export default function Scanner({ onClose, onSave }) {
   const [parsedData, setParsedData] = useState(null);
   const [scanCount, setScanCount] = useState(0);
   const [usedAI, setUsedAI] = useState(false);
+  const [storeType, setStoreType] = useState('general');
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -99,31 +111,6 @@ export default function Scanner({ onClose, onSave }) {
     e.target.value = '';
   };
 
-  const handleTriggerDemo = (demoId) => {
-    const demo = DEMO_RECEIPTS.find(r => r.id === demoId);
-    if (!demo) return;
-    stopCamera();
-    setScanMode('processing');
-    const steps = ['Scanning photo dimensions...', 'Decompressing image channels...', 'Reading receipt text lines...', 'Mapping items to category dictionaries...', 'Finalizing transaction structure...'];
-    let i = 0;
-    setStatusMessage(steps[0]);
-    const timer = setInterval(() => {
-      i++;
-      if (i < steps.length) { setStatusMessage(steps[i]); }
-      else {
-        clearInterval(timer);
-        const demoItems = JSON.parse(JSON.stringify(demo.items));
-        const newCount = scanCount + 1;
-        setScanCount(newCount);
-        setParsedData(prev => {
-          if (prev && newCount > 1) return { ...prev, items: [...prev.items, ...demoItems] };
-          return { merchant: demo.merchant, date: demo.date, isGasMeter: demo.isGasMeter, items: demoItems };
-        });
-        setScanMode('review');
-      }
-    }, 500);
-  };
-
   // Core processing — merges into existing parsedData if this is a follow-up scan
   const processCapturedImage = async (base64, mimeType) => {
     stopCamera();
@@ -135,7 +122,7 @@ export default function Scanner({ onClose, onSave }) {
       // Always try the server-side AI proxy first; fall back to Tesseract OCR if unavailable
       try {
         setStatusMessage('Scanning with AI...');
-        newResult = await parseWithGemini(base64, mimeType);
+        newResult = await parseWithGemini(base64, mimeType, storeType);
         setUsedAI(true);
         setStatusMessage('Structuring items...');
       } catch (aiErr) {
@@ -260,22 +247,46 @@ export default function Scanner({ onClose, onSave }) {
               </div>
             )}
 
+            {/* Store Type Selector */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '8px' }}>
+                Bill type — helps AI read it correctly
+              </div>
+              <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px', scrollbarWidth: 'none' }}>
+                {STORE_TYPES.map(s => (
+                  <button key={s.id} onClick={() => setStoreType(s.id)}
+                    style={{
+                      flexShrink: 0,
+                      display: 'flex', alignItems: 'center', gap: '5px',
+                      padding: '6px 12px', borderRadius: '50px', cursor: 'pointer',
+                      fontSize: '0.75rem', fontWeight: 700,
+                      border: `1px solid ${storeType === s.id ? 'rgba(99,102,241,0.6)' : 'rgba(255,255,255,0.08)'}`,
+                      background: storeType === s.id ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.03)',
+                      color: storeType === s.id ? '#a5b4fc' : '#64748b',
+                      transition: 'all 0.15s',
+                    }}>
+                    {s.icon} {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
+            {/* Camera viewport — full size now that demo is removed */}
             {!cameraError ? (
-              <div className="scanner-viewport">
+              <div className="scanner-viewport" style={{ height: '320px' }}>
                 <video ref={videoRef} autoPlay playsInline muted className="scanner-video" />
                 <div className="scanner-grid-box" />
                 <div className="scanner-laser-line" />
               </div>
             ) : (
-              <div className="scanner-viewport" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '16px', gap: '10px' }}>
+              <div className="scanner-viewport" style={{ height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '16px', gap: '10px' }}>
                 <Camera size={36} className="text-primary" />
                 <p style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Camera Permissions Blocked</p>
                 <p style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: '1.4', textAlign: 'center', maxWidth: '240px' }}>Allow camera access in your browser Settings, or upload an image instead.</p>
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
               {streamActive && (
                 <button onClick={handleCapture} className="solid-btn" style={{ flex: 2 }}>
                   <Camera size={18} /> {scanCount > 0 ? 'Capture Next Section' : 'Capture Photo'}
@@ -287,29 +298,6 @@ export default function Scanner({ onClose, onSave }) {
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
               <canvas ref={canvasRef} style={{ display: 'none' }} />
             </div>
-
-            {/* Demo simulator */}
-            {scanCount === 0 && (
-              <div className="glass-card" style={{ background: 'rgba(99,102,241,0.04)', borderColor: 'rgba(99,102,241,0.15)', padding: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.82rem', fontWeight: 700, color: '#a5b4fc' }}>
-                  <Info size={16} /> Demo Simulator
-                </div>
-                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '12px', lineHeight: '1.4' }}>
-                  No receipt nearby? Try a demo to see how scanning works.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <button onClick={() => handleTriggerDemo('kroger_grocery')} className="outline-btn" style={{ justifyContent: 'flex-start', padding: '10px 14px', fontSize: '0.78rem', borderRadius: '12px' }}>
-                    🥦 Kroger Grocery (Tomatoes, Milk, Salmon)
-                  </button>
-                  <button onClick={() => handleTriggerDemo('chevron_fuel')} className="outline-btn" style={{ justifyContent: 'flex-start', padding: '10px 14px', fontSize: '0.78rem', borderRadius: '12px' }}>
-                    ⛽ Chevron Gas Pump Meter
-                  </button>
-                  <button onClick={() => handleTriggerDemo('starbucks_dining')} className="outline-btn" style={{ justifyContent: 'flex-start', padding: '10px 14px', fontSize: '0.78rem', borderRadius: '12px' }}>
-                    ☕ Starbucks Café Bill
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 

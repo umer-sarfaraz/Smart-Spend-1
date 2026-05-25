@@ -255,11 +255,61 @@ export function parseOcrTextOffline(text) {
   return { merchant, date, isGasMeter, items };
 }
 
+// Store-specific prompt hints injected into the Gemini prompt for better accuracy
+const STORE_HINTS = {
+  restaurant_depot: `
+STORE: This is a Restaurant Depot wholesale food distributor receipt. Use these rules:
+- Items appear in MULTI-LINE blocks: line 1 = item name, line 2 = 12-13 digit UPC barcode, line 3 = tax code + sometimes weight info, then price right-aligned.
+- STRIP all 12-13 digit UPC barcodes — they are not part of the item name.
+- STRIP tax code tokens: "(TA)", "U(TA)", "(TX)", "N" — these are tax indicators, not part of the name.
+- STRIP "UNITS 1", "CASES ENTERED 0", "ITEMS RUNG UP", "UNITS COUNT", "TOTAL RW ITEMS" — these are footer labels, not items.
+- Weight-based pricing format: "(TA)10.05LB@$6.73LB  $67.64" means 10.05 lbs at $6.73/lb = $67.64. Use the final right-aligned price ($67.64) and write name as "Beef Ground 90% Halal (10.05 lb)".
+- Case format: "6/5LB" = case of 6 units each 5 lb. "CHZ PS MOZZ SH GAL 6/5LB" → "Mozzarella Shredded Gallon 6×5 lb".
+- Always include bulk size in name: "Atta Flour 20 lb", "Chicken Breast 40 lb", "All-Purpose Flour 25 lb".
+- The rightmost dollar amount on each item block is the extended price (what was charged). Use that.`,
+
+  costco: `
+STORE: This is a Costco Wholesale receipt.
+- Strip 6-7 digit Costco item numbers that appear before item names.
+- Items are bulk/large quantity. Include size in name ("Kirkland Chicken Breast 6 lb").
+- Format: item number, description, quantity, unit price, extended price. Use extended price.`,
+
+  walmart: `
+STORE: This is a Walmart retail receipt.
+- Two-column format: item description left, price right.
+- Strip trailing tax codes: T = taxable, X = taxable, N = non-taxable.
+- Weight stickers show "XX LB @ $X.XX/LB" — use the extended price and include weight in name.`,
+
+  lotte: `
+STORE: This is a Lotte Plaza Asian supermarket receipt.
+- May contain Korean, Chinese, or Japanese product abbreviations — translate to readable English names.
+- Focus: fresh Asian produce, seafood, Korean/Japanese packaged foods.
+- Standard retail single-line format.`,
+
+  halal: `
+STORE: This is a halal butcher / Middle Eastern grocery receipt.
+- Focus: halal meats, Middle Eastern pantry items.
+- Weight-based pricing common for fresh cuts.
+- May have Arabic or Urdu product names — translate to English.`,
+
+  gas: `
+STORE: This is a gas station fuel receipt or pump display.
+- Set isGasMeter: true.
+- Extract as a single fuel item: gallons pumped, price per gallon, total.
+- Name format: "Unleaded Fuel (12.8 gal @ $3.51/gal)".`,
+
+  general: '',
+};
+
 // 6. Gemini Receipt Parser — calls the server-side proxy (/api/gemini)
 // The API key is stored as a Vercel environment variable; clients never see it.
-export async function parseWithGemini(base64Image, mimeType) {
+// storeHint: 'general' | 'restaurant_depot' | 'costco' | 'walmart' | 'lotte' | 'halal' | 'gas'
+export async function parseWithGemini(base64Image, mimeType, storeHint = 'general') {
+  const storeContext = STORE_HINTS[storeHint] || '';
+
   const prompt = `You are a receipt scanning engine for a personal mobile expense app.
-Analyze this photo — it could be a retail grocery receipt, a wholesale/bulk store receipt (e.g. Restaurant Depot, Costco, Sam's Club, BJ's), or a gas pump meter screen.
+Analyze this photo — it could be a retail grocery receipt, a wholesale/bulk store receipt, or a gas pump display.
+${storeContext}
 
 Extract:
 1. The merchant/store name (e.g. "Restaurant Depot", "Costco", "Walmart", "Chevron").
@@ -267,39 +317,24 @@ Extract:
 3. Whether this is a gas station pump display screen (isGasMeter: true/false).
 4. Every purchased line item with its correct extended price (the final charged amount per line).
 
-IMPORTANT rules for item extraction:
-- STRIP item/product codes — wholesale receipts often have 5-8 digit codes before item names. Remove them; only keep the human-readable name.
-- For weight-based items (e.g. "15.62 LB @ $1.29/LB  $20.15"), use the extended price ($20.15) and write a clean name like "Chicken Breast (15.62 lb)".
+GENERAL rules (apply to all stores unless overridden above):
+- STRIP item/product codes — wholesale receipts often have 5-8 digit codes before item names. Remove them.
+- For weight-based items (e.g. "15.62 LB @ $1.29/LB  $20.15"), use the extended price ($20.15) and include weight in name.
 - For case/pack items (e.g. "2 CS TOMATO SAUCE  $18.00"), write a clean name like "Tomato Sauce (2 cases)".
 - Clean up abbreviated OCR names into readable English (e.g. "ORG TMT 25LB" → "Organic Tomatoes 25 lb").
 - Skip lines for tax, fees, total, subtotal, discounts, payments, or coupons.
-- For a gas meter, extract one item with the total fuel cost.
 
 Categorize each item into exactly one of these 14 categories:
-"vegetables" — fresh/frozen produce: tomatoes, potatoes, onions, peppers, spinach, etc.
-"fruits" — apples, bananas, citrus, berries, grapes, etc.
-"dairy" — milk, cheese, butter, yogurt, eggs, cream
-"meat" — chicken, beef, pork, fish, seafood, deli meats
-"bakery" — bread, rice, flour, pasta, oil, sauces, canned goods, dry goods, grains
-"rent" — rent, mortgage, housing fees
-"utilities" — electricity, water, internet, phone bill
-"fuel" — gas station, diesel, petrol
-"dining" — restaurants, cafes, coffee shops, fast food
-"fitness" — gym, yoga, sports club
-"education" — tuition, courses, school fees, books
-"shopping" — hygiene, clothing, household goods, cleaning supplies
-"entertainment" — streaming, cinema, games, subscriptions
-"other" — anything that doesn't fit above
+"vegetables","fruits","dairy","meat","bakery","rent","utilities","fuel","dining","fitness","education","shopping","entertainment","other"
 
-Return EXACTLY a JSON object with no markdown formatting, no code fences, matching this structure:
+Return EXACTLY a JSON object with no markdown formatting, no code fences:
 {
   "merchant": "Restaurant Depot",
   "date": "2026-05-24",
   "isGasMeter": false,
   "items": [
-    { "name": "Chicken Breast (15.62 lb)", "amount": 20.15, "category": "meat" },
-    { "name": "Roma Tomatoes 25 lb", "amount": 18.99, "category": "vegetables" },
-    { "name": "Canola Oil 1 Gal", "amount": 12.49, "category": "bakery" }
+    { "name": "Halal Chicken Patties 10 lb", "amount": 23.24, "category": "meat" },
+    { "name": "Garlic Loose 6×5 lb", "amount": 14.44, "category": "vegetables" }
   ]
 }`;
 
