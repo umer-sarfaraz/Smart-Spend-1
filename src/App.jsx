@@ -6,8 +6,7 @@ import Settings from './components/Settings';
 import Scanner from './components/Scanner';
 import ManualForm from './components/ManualForm';
 import ShoppingList from './components/ShoppingList';
-import Pantry from './components/Pantry';
-import { Home, ShoppingBag, Archive, History as HistoryIcon, Settings as SettingsIcon } from 'lucide-react';
+import { Home, ShoppingBag, History as HistoryIcon, Settings as SettingsIcon } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 // Seeding standard high-fidelity mockup data for immediate beautiful layout on initial load!
@@ -401,14 +400,6 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'pantry' && (
-          <Pantry
-            expenses={expenses}
-            budget={budget}
-            onSaveBudget={setBudget}
-          />
-        )}
-
         {activeTab === 'history' && (
           <History
             expenses={expenses}
@@ -498,22 +489,13 @@ export default function App() {
           {activeTab === 'dashboard' && <div className="nav-item-indicator" />}
         </button>
 
-        <button 
-          onClick={() => setActiveTab('shopping')} 
+        <button
+          onClick={() => setActiveTab('shopping')}
           className={`nav-item ${activeTab === 'shopping' ? 'active' : ''}`}
         >
           <ShoppingBag size={22} />
           <span style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Checklist</span>
           {activeTab === 'shopping' && <div className="nav-item-indicator" />}
-        </button>
-
-        <button 
-          onClick={() => setActiveTab('pantry')} 
-          className={`nav-item ${activeTab === 'pantry' ? 'active' : ''}`}
-        >
-          <Archive size={22} />
-          <span style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Pantry</span>
-          {activeTab === 'pantry' && <div className="nav-item-indicator" />}
         </button>
 
         <button 
