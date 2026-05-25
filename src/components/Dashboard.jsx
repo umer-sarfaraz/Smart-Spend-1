@@ -273,34 +273,35 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* Inline Budget Edit Drawer */}
+      {/* Budget Edit — compact centered modal so keyboard never hides the input */}
       {editBudgetOpen && (
-        <div className="drawer-overlay" onClick={() => setEditBudgetOpen(false)}>
-          <div className="drawer-sheet" onClick={e => e.stopPropagation()}>
-            <div className="drawer-drag-handle" />
-            <div className="drawer-header">
-              <h3>✏️ Edit Monthly Budget</h3>
-              <button onClick={() => setEditBudgetOpen(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
+        <div className="confirm-overlay" onClick={() => setEditBudgetOpen(false)}>
+          <div className="confirm-box" style={{ maxWidth: '320px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '4px' }}>💰</div>
+              <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.1rem', fontWeight: 800, marginBottom: '4px' }}>Monthly Budget</h3>
+              <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Set your max spending for this month</p>
             </div>
-            <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: '12px' }}>
-              Set the maximum you plan to spend this month.
-            </p>
             <input
-              type="number"
-              step="1"
-              min="1"
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9.]*"
+              placeholder="e.g. 500"
               value={editBudgetVal}
               onChange={e => setEditBudgetVal(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleSaveBudget(); }}
               className="input-element"
-              style={{ fontSize: '1.4rem', fontFamily: 'var(--font-title)', fontWeight: 800, marginBottom: '14px' }}
+              style={{ fontSize: '2rem', fontFamily: 'var(--font-title)', fontWeight: 800, textAlign: 'center', letterSpacing: '-0.02em' }}
               autoFocus
             />
-            <button className="solid-btn" onClick={handleSaveBudget}>
-              <Check size={18} /> Save Budget
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="outline-btn" onClick={() => setEditBudgetOpen(false)} style={{ flex: 1, padding: '12px' }}>
+                <X size={16} /> Cancel
+              </button>
+              <button className="solid-btn" onClick={handleSaveBudget} style={{ flex: 2 }}>
+                <Check size={18} /> Save
+              </button>
+            </div>
           </div>
         </div>
       )}

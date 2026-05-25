@@ -272,6 +272,7 @@ export default function ManualForm({ onClose, onSave, customStores = [], onAddCu
                 <label>Total Amount ($)</label>
                 <input
                   type="number"
+                  inputMode="decimal"
                   step="0.01"
                   min="0.01"
                   required
@@ -401,6 +402,7 @@ export default function ManualForm({ onClose, onSave, customStores = [], onAddCu
                     <label style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--slate-text)', letterSpacing: '0.05em' }}>AMOUNT ($)</label>
                     <input
                       type="number"
+                      inputMode="decimal"
                       step="any"
                       required
                       placeholder="0.00"

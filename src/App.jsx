@@ -286,8 +286,8 @@ export default function App() {
 
   const handleDeleteShoppingItem = (idx) => {
     try {
-      const currentList = Array.isArray(shoppingList) ? shoppingList : [];
-      setShoppingList(currentList.filter((_, i) => i !== idx));
+      // Use functional update so rapid/batched calls each see the latest state
+      setShoppingList(prev => (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx));
     } catch (err) {
       console.error(err);
     }
