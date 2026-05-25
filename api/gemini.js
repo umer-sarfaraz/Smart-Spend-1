@@ -35,13 +35,16 @@ export default async function handler(req, res) {
     try {
       const url = `https://generativelanguage.googleapis.com/${api}/models/${id}:generateContent?key=${apiKey}`;
 
+      // responseMimeType (JSON mode) only exists on v1beta — omit it for v1 models
+      // and rely on the prompt's "return only JSON" instruction + our fence-stripping
+      const generationConfig = api === 'v1beta'
+        ? { responseMimeType: 'application/json' }
+        : {};
+
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: { responseMimeType: 'application/json' }
-        })
+        body: JSON.stringify({ contents: [{ parts }], generationConfig })
       });
 
       // 429 = quota exhausted, 404 = model not available — skip and try next
