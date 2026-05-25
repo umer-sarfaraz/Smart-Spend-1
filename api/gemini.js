@@ -1,11 +1,13 @@
 // Models tried in order — each has its own daily quota pool.
-// jsonMode: true → responseMimeType:'application/json' in generationConfig (v1beta only)
-// jsonMode: false → rely on prompt instruction + fence-stripping (any endpoint)
+// All confirmed present via ListModels as of the current deploy date.
+// gemini-1.5-x models are deprecated and no longer in the API.
 const MODELS = [
-  { id: 'gemini-2.0-flash',      api: 'v1beta', jsonMode: true  },
-  { id: 'gemini-2.0-flash-lite', api: 'v1beta', jsonMode: true  },
-  { id: 'gemini-1.5-flash-8b',   api: 'v1beta', jsonMode: true  },
-  { id: 'gemini-1.5-flash',      api: 'v1beta', jsonMode: false }, // JSON mode not supported on this model
+  { id: 'gemini-2.5-flash',      api: 'v1beta', jsonMode: true },
+  { id: 'gemini-2.0-flash',      api: 'v1beta', jsonMode: true },
+  { id: 'gemini-2.5-flash-lite', api: 'v1beta', jsonMode: true },
+  { id: 'gemini-2.0-flash-lite', api: 'v1beta', jsonMode: true },
+  { id: 'gemini-3.1-flash-lite', api: 'v1beta', jsonMode: true },
+  { id: 'gemini-3.5-flash',      api: 'v1beta', jsonMode: true },
 ];
 
 export default async function handler(req, res) {
