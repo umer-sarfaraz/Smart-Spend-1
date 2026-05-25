@@ -352,7 +352,139 @@ Return EXACTLY a JSON object with no markdown formatting, no code fences:
   return await response.json();
 }
 
-// 7. Gemini Pantry Scanner — calls the server-side proxy (/api/gemini)
+// 7. NEW PRIMARY PARSER: Send OCR text to Gemini for intelligent parsing
+// This is more reliable than sending the image — Gemini's text reasoning >> its vision OCR
+export async function parseTextWithGemini(ocrText, storeHint = 'general') {
+
+  // Per-store text parsing rules injected into the prompt
+  const textHints = {
+    restaurant_depot: `
+STORE: Restaurant Depot (wholesale food distributor)
+
+RECEIPT FORMAT — each item appears in a 3–4 line block:
+  Line 1: Item name in ALL CAPS (abbreviated), e.g. "CHX GV PATTY HALAL 10LBS"
+  Line 2: 12–13 digit UPC barcode — IGNORE completely, never include in name
+  Line 3: Tax code "(TA)" or "U(TA)", sometimes followed by weight×price e.g. "(TA)10.05LB@$6.73LB"
+  Line 4: "UNITS 1" then the extended price right-aligned, e.g. "$23.24"
+  (Lines 3–4 are sometimes merged into one line)
+
+PRICE RULE: The price for each item is the LAST "$X.XX" value that appears in the item block — that is the extended/total price actually charged.
+
+SKIP THESE LINES (not items):
+  • Any line that is only digits (barcode)
+  • "(TA)", "U(TA)", "(TX)", "N" alone on a line
+  • "UNITS 1", "UNITS ENTERED", "CASES ENTERED", "ITEMS RUNG UP"
+  • "TOTAL RW ITEMS", "UNITS COUNT"
+  • Header line (transaction number like "C16 I10736 DP287941")
+  • Any line containing TOTAL, SUBTOTAL, TAX, CHANGE, CASH, CREDIT
+
+DECODE THESE ABBREVIATIONS (expand them in the output name):
+  CHX → Chicken | BF → Beef | BF GROUND → Ground Beef | PD → Produce
+  GV → Giant Value (brand, can keep or drop) | FLOR → Flour | A/P → All-Purpose
+  CHZ → Cheese | PS → Processed | MOZZ → Mozzarella | SH → Shredded | GAL → Gallon
+  CHIC BRST → Chicken Breast | MED SIZE → Medium Size | SWARNA CHAKKI ATTA → Swarna Chakki Atta (keep as-is, it's a flour brand)
+
+SIZE FORMAT: Include bulk size in the name.
+  10LBS → "10 lb" | 20LBS → "20 lb" | 25LB → "25 lb" | 6/5LB → "6×5 lb" | 40LB → "40 lb"
+
+WEIGHT ITEMS: "(TA)40LB@$2.15LB ... $86.00" means 40 lb at $2.15/lb = $86.00.
+  Name: "Chicken Breast Med Size (40 lb)" | Amount: 86.00`,
+
+    costco: `
+STORE: Costco Wholesale
+FORMAT: Each line has: item number (6–7 digits, skip), description, quantity, unit price, extended price.
+Use extended price. Include size/quantity in name. Strip Costco item numbers.`,
+
+    walmart: `
+STORE: Walmart retail
+FORMAT: Two columns — description left, price right. Tax codes T/X/N after price — strip them.
+Weight items: "X.XX lb @ $X.XX/lb" on same line — use the total price at the end.`,
+
+    lotte: `
+STORE: Lotte Plaza Asian supermarket
+FORMAT: Standard retail receipt. Item name left, price right.
+Translate any Korean/Japanese/Chinese product abbreviations to readable English.
+Focus on fresh produce, seafood, Asian packaged goods.`,
+
+    halal: `
+STORE: Halal butcher / Middle Eastern grocery
+FORMAT: Standard retail. Weight-based for fresh meats (lb × price/lb = total).
+Translate Arabic/Urdu product names to English. Categorize halal meats as "meat".`,
+
+    gas: `
+STORE: Gas station fuel receipt or pump display
+Set isGasMeter: true. Single item: gallons × price/gal = total.
+Name format: "Unleaded Fuel (X.XX gal @ $X.XX/gal)"`,
+
+    general: `
+STORE: General retail receipt
+FORMAT: Most lines are "Item name ..... $price" or "Item name   $price".
+Skip totals, taxes, payment lines, store header/footer.
+For weight items, use the extended (total) price.`,
+  };
+
+  const storeInstructions = textHints[storeHint] || textHints.general;
+  const today = new Date().toISOString().split('T')[0];
+
+  const prompt = `You are an expert receipt parser. Below is raw OCR text scanned from a grocery/store receipt. Parse it and extract all purchased items.
+
+${storeInstructions}
+
+CATEGORIES — assign each item to exactly one:
+"vegetables" — produce: tomatoes, potatoes, onions, garlic, peppers, greens, etc.
+"fruits" — apples, bananas, citrus, berries, grapes, mangoes, etc.
+"dairy" — milk, cheese, butter, yogurt, eggs, cream
+"meat" — chicken, beef, lamb, pork, fish, seafood, halal meats
+"bakery" — bread, rice, flour, pasta, oil, sauces, canned goods, dry goods, grains, atta, lentils
+"rent" — rent, mortgage, housing
+"utilities" — electricity, water, internet, phone bill
+"fuel" — gas station, diesel, petrol
+"dining" — restaurants, cafes, coffee, fast food
+"fitness" — gym, yoga, sports
+"education" — tuition, books, courses
+"shopping" — hygiene, cleaning, household, clothing, personal care
+"entertainment" — streaming, cinema, games
+"other" — anything else
+
+TODAY'S DATE: ${today} (use this if date is not visible in receipt)
+
+RAW OCR TEXT FROM RECEIPT:
+---
+${ocrText}
+---
+
+Return EXACTLY a JSON object with no markdown, no code fences, no explanation — just the raw JSON:
+{
+  "merchant": "Store Name",
+  "date": "YYYY-MM-DD",
+  "isGasMeter": false,
+  "items": [
+    { "name": "Human Readable Item Name", "amount": 12.34, "category": "meat" }
+  ]
+}`;
+
+  const response = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }) // text-only — no image needed
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Gemini text parse failed');
+  }
+
+  const result = await response.json();
+
+  // Validate the response has the expected shape
+  if (!result.items || !Array.isArray(result.items)) {
+    throw new Error('Gemini returned invalid structure');
+  }
+
+  return result;
+}
+
+// 8. Gemini Pantry Scanner — calls the server-side proxy (/api/gemini)
 export async function scanPantryWithGemini(base64Image, mimeType, scanType) {
   const prompt = scanType === 'fridge'
     ? `You are an AI fridge scanning engine. Analyze this photo of the inside of an open refrigerator.

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createWorker } from 'tesseract.js';
-import { CATEGORIES, parseOcrTextOffline, parseWithGemini } from '../utils/parser';
+import { CATEGORIES, parseOcrTextOffline, parseWithGemini, parseTextWithGemini } from '../utils/parser';
 import { Camera, FileImage, Sparkles, Check, X, Plus, Trash2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -111,56 +111,86 @@ export default function Scanner({ onClose, onSave }) {
     e.target.value = '';
   };
 
-  // Core processing — merges into existing parsedData if this is a follow-up scan
+  // ─── NEW PROCESSING PIPELINE ────────────────────────────────────────────────
+  // Tier 1: Tesseract OCR  → raw text  (dedicated OCR engine)
+  // Tier 2: Gemini Text AI → JSON      (text reasoning, most accurate)
+  // Tier 3: Offline regex  → JSON      (no network needed)
+  // Tier 4: Gemini Vision  → JSON      (fallback if OCR failed completely)
+  // Tier 5: Empty form                 (manual entry)
   const processCapturedImage = async (base64, mimeType) => {
     stopCamera();
     setScanMode('processing');
+    setUsedAI(false);
 
     try {
-      let newResult;
-
-      // Always try the server-side AI proxy first; fall back to Tesseract OCR if unavailable
+      // ── TIER 1: OCR the image with Tesseract ─────────────────────────────
+      let rawText = '';
       try {
-        setStatusMessage('Scanning with AI...');
-        newResult = await parseWithGemini(base64, mimeType, storeType);
-        setUsedAI(true);
-        setStatusMessage('Structuring items...');
-      } catch (aiErr) {
-        setStatusMessage(`AI unavailable (${aiErr.message}) — switching to OCR...`);
-        await new Promise(r => setTimeout(r, 1500)); // show the error briefly
-        setStatusMessage('Loading OCR engine...');
+        setStatusMessage('Reading receipt text...');
         const worker = await createWorker('eng', 1, {
           logger: m => {
             if (m.status === 'recognizing text') {
-              const pct = Math.round((m.progress || 0) * 100);
-              setStatusMessage(`Reading bill text... ${pct}%`);
+              setStatusMessage(`Reading text... ${Math.round((m.progress || 0) * 100)}%`);
             }
           }
         });
-        setStatusMessage('Scanning receipt lines...');
         const { data: { text } } = await worker.recognize(`data:${mimeType};base64,${base64}`);
         await worker.terminate();
-        setStatusMessage('Categorizing line items...');
-        await new Promise(r => setTimeout(r, 300));
-        newResult = parseOcrTextOffline(text);
-        if (!newResult.items.length || (newResult.items.length === 1 && newResult.items[0].name === 'General Purchase')) {
-          newResult.items = [{ name: '', amount: 0, category: 'other' }];
+        rawText = text.trim();
+      } catch (ocrErr) {
+        console.warn('Tesseract OCR error:', ocrErr.message);
+      }
+
+      let newResult = null;
+
+      if (rawText.length > 40) {
+        // ── TIER 2: Send OCR text to Gemini for intelligent parsing ──────
+        // Gemini reads TEXT far better than images for complex receipt layouts
+        try {
+          setStatusMessage('AI reading receipt...');
+          newResult = await parseTextWithGemini(rawText, storeType);
+          setUsedAI(true);
+        } catch (textErr) {
+          console.warn('Gemini text parse failed:', textErr.message);
+
+          // ── TIER 3: Offline regex parser on OCR text ─────────────────
+          setStatusMessage('Parsing offline...');
+          newResult = parseOcrTextOffline(rawText);
+          if (!newResult.items.length ||
+              (newResult.items.length === 1 && newResult.items[0].name === 'General Purchase')) {
+            newResult.items = [{ name: '', amount: 0, category: 'other' }];
+          }
+        }
+      }
+
+      if (!newResult) {
+        // ── TIER 4: No OCR text → fall back to Gemini Vision directly ───
+        try {
+          setStatusMessage('Trying AI vision...');
+          newResult = await parseWithGemini(base64, mimeType, storeType);
+          setUsedAI(true);
+        } catch (visionErr) {
+          console.warn('Gemini vision failed:', visionErr.message);
+          // ── TIER 5: Completely failed → empty form for manual entry ──
+          newResult = {
+            merchant: 'Scanned Receipt',
+            date: new Date().toISOString().split('T')[0],
+            isGasMeter: false,
+            items: [{ name: '', amount: 0, category: 'other' }]
+          };
         }
       }
 
       const newCount = scanCount + 1;
       setScanCount(newCount);
       setParsedData(prev => {
-        if (prev && newCount > 1) {
-          // Append new items to the existing list
-          return { ...prev, items: [...prev.items, ...newResult.items] };
-        }
+        if (prev && newCount > 1) return { ...prev, items: [...prev.items, ...newResult.items] };
         return newResult;
       });
       setScanMode('review');
 
     } catch (err) {
-      console.error(err);
+      console.error('Processing pipeline failed:', err);
       setStatusMessage('Scan failed — fill in manually below.');
       setParsedData(prev => prev || {
         merchant: 'Scanned Receipt',
@@ -320,8 +350,8 @@ export default function Scanner({ onClose, onSave }) {
 
             {/* AI vs OCR badge */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', background: usedAI ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)', border: `1px solid ${usedAI ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}`, borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700, color: usedAI ? '#34d399' : '#fbbf24' }}>
-              <span>{usedAI ? '✦ Gemini AI' : '⚠ OCR Fallback'}</span>
-              <span style={{ fontWeight: 400, opacity: 0.8 }}>{usedAI ? '— AI read your receipt' : '— AI unavailable, results may need editing'}</span>
+              <span>{usedAI ? '✦ Gemini AI' : '⚠ Offline Parser'}</span>
+              <span style={{ fontWeight: 400, opacity: 0.8 }}>{usedAI ? '— OCR + AI text analysis' : '— No internet or AI unavailable, check items'}</span>
             </div>
 
             {/* Multi-scan tip */}

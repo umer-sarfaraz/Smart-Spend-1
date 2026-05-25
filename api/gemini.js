@@ -9,23 +9,25 @@ export default async function handler(req, res) {
   }
 
   const { base64Image, mimeType, prompt } = req.body || {};
-  if (!base64Image || !mimeType || !prompt) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (!prompt) {
+    return res.status(400).json({ error: 'Missing prompt' });
   }
 
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
+    // Build parts array: image is optional — text-only requests work without it
+    const parts = [];
+    if (base64Image && mimeType) {
+      parts.push({ inlineData: { mimeType, data: base64Image } });
+    }
+    parts.push({ text: prompt });
+
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inlineData: { mimeType, data: base64Image } }
-          ]
-        }],
+        contents: [{ parts }],
         generationConfig: { responseMimeType: 'application/json' }
       })
     });
