@@ -1,10 +1,11 @@
 // Models tried in order — each has its own daily quota pool.
-// 2.0 models use v1beta; stable 1.5 models use v1 (they are not on v1beta).
+// jsonMode: true → responseMimeType:'application/json' in generationConfig (v1beta only)
+// jsonMode: false → rely on prompt instruction + fence-stripping (any endpoint)
 const MODELS = [
-  { id: 'gemini-2.0-flash',      api: 'v1beta' },
-  { id: 'gemini-2.0-flash-lite', api: 'v1beta' },
-  { id: 'gemini-1.5-flash-8b',   api: 'v1beta' },
-  { id: 'gemini-1.5-flash',      api: 'v1'     },
+  { id: 'gemini-2.0-flash',      api: 'v1beta', jsonMode: true  },
+  { id: 'gemini-2.0-flash-lite', api: 'v1beta', jsonMode: true  },
+  { id: 'gemini-1.5-flash-8b',   api: 'v1beta', jsonMode: true  },
+  { id: 'gemini-1.5-flash',      api: 'v1beta', jsonMode: false }, // JSON mode not supported on this model
 ];
 
 export default async function handler(req, res) {
@@ -31,15 +32,10 @@ export default async function handler(req, res) {
 
   let lastError = 'Gemini API error';
 
-  for (const { id, api } of MODELS) {
+  for (const { id, api, jsonMode } of MODELS) {
     try {
       const url = `https://generativelanguage.googleapis.com/${api}/models/${id}:generateContent?key=${apiKey}`;
-
-      // responseMimeType (JSON mode) only exists on v1beta — omit it for v1 models
-      // and rely on the prompt's "return only JSON" instruction + our fence-stripping
-      const generationConfig = api === 'v1beta'
-        ? { responseMimeType: 'application/json' }
-        : {};
+      const generationConfig = jsonMode ? { responseMimeType: 'application/json' } : {};
 
       const response = await fetch(url, {
         method: 'POST',
@@ -47,7 +43,7 @@ export default async function handler(req, res) {
         body: JSON.stringify({ contents: [{ parts }], generationConfig })
       });
 
-      // 429 = quota exhausted, 404 = model not available — skip and try next
+      // 429 = quota exhausted, 404 = model not on this endpoint — skip, try next
       if (response.status === 429 || response.status === 404) {
         const err = await response.json().catch(() => ({}));
         lastError = err.error?.message || `${id} unavailable (${response.status})`;
@@ -57,22 +53,38 @@ export default async function handler(req, res) {
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        return res.status(response.status).json({ error: err.error?.message || 'Gemini API error' });
+        // 400 with "responseMimeType" in the error = JSON mode not supported → skip
+        const errMsg = err.error?.message || '';
+        if (response.status === 400 && /responseMimeType|mimeType/i.test(errMsg)) {
+          lastError = errMsg;
+          console.warn(`[gemini] ${id} JSON mode unsupported, trying next`);
+          continue;
+        }
+        return res.status(response.status).json({ error: errMsg || 'Gemini API error' });
       }
 
       const data = await response.json();
       const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!resultText) throw new Error('Empty response from Gemini');
 
-      // Gemini sometimes wraps JSON in markdown code fences — strip them
+      // Strip markdown code fences Gemini sometimes wraps JSON in
       let cleaned = resultText.trim();
       cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+
+      // If it still starts with non-JSON text, try to find the JSON object
+      if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
+        const match = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+        if (match) cleaned = match[1];
+      }
 
       let parsed;
       try {
         parsed = JSON.parse(cleaned);
       } catch (parseErr) {
-        return res.status(500).json({ error: `JSON parse failed: ${parseErr.message}`, raw: cleaned.slice(0, 500) });
+        // Parse failed on this model — try next
+        lastError = `${id} returned unparseable JSON`;
+        console.warn(`[gemini] ${id} parse error: ${parseErr.message}. Raw: ${cleaned.slice(0, 100)}`);
+        continue;
       }
 
       parsed._model = id;
@@ -85,9 +97,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // All models failed
+  // All models exhausted
   return res.status(429).json({
-    error: `All models failed. Last: ${lastError}`,
+    error: `Daily AI quota reached — resets at midnight (Pacific Time). Last: ${lastError}`,
     tried: MODELS.map(m => m.id)
   });
 }
