@@ -225,12 +225,15 @@ export default function ShoppingList({
   const [customPhoto,    setCustomPhoto]    = useState(null);
   const [showCustomForm, setShowCustomForm] = useState(false);
 
-  const [editIdx,      setEditIdx]      = useState(null);
-  const [editName,     setEditName]     = useState('');
-  const [editStore,    setEditStore]    = useState('');
-  const [editCat,      setEditCat]      = useState('');
-  const [editPhoto,    setEditPhoto]    = useState(null);
-  const [scanSearch,   setScanSearch]   = useState('');   // catalog search inside scan modal
+  const [editIdx,           setEditIdx]           = useState(null);
+  const [editName,          setEditName]          = useState('');
+  const [editStore,         setEditStore]         = useState('');
+  const [editCat,           setEditCat]           = useState('');
+  const [editPhoto,         setEditPhoto]         = useState(null);
+  // Full-screen catalog picker for correcting a scanned item's name
+  const [showScanPicker,    setShowScanPicker]    = useState(false);
+  const [scanPickerSection, setScanPickerSection] = useState(null);
+  const [scanPickerSearch,  setScanPickerSearch]  = useState('');
 
   const [showScanner,  setShowScanner]  = useState(false);
   const [streamActive, setStreamActive] = useState(false);
@@ -380,19 +383,33 @@ export default function ShoppingList({
 
   const scrollToLetter = (l) => letterRefs.current[l]?.scrollIntoView({ behavior:'smooth', block:'start' });
 
-  // Search all CATALOG sections — used by scan confirmation modal
-  const searchCatalog = (q) => {
-    if (!q.trim()) return [];
-    const lower = q.toLowerCase();
-    const results = [];
-    Object.entries(CATALOG).forEach(([cat, names]) => {
-      names.forEach(name => { if (name.toLowerCase().includes(lower)) results.push({ name, cat }); });
-    });
-    return results.slice(0, 8);
+  // Items shown inside the scan picker overlay
+  const getScanPickerItems = () => {
+    const q = scanPickerSearch.trim().toLowerCase();
+    if (q) {
+      const results = [];
+      Object.entries(CATALOG).forEach(([cat, names]) => {
+        names.forEach(name => { if (name.toLowerCase().includes(q)) results.push({ name, cat }); });
+      });
+      return results.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    if (!scanPickerSection || scanPickerSection === '__search__') return [];
+    return [...(CATALOG[scanPickerSection] || [])].sort().map(name => ({ name, cat: scanPickerSection }));
   };
 
-  // Close edit modal and clear scan search
-  const closeEdit = () => { setEditIdx(null); setScanSearch(''); };
+  // Assign a catalog item to the currently-scanned item being confirmed
+  const assignScannedItem = (item) => {
+    setEditName(item.name);
+    setEditCat(item.cat);
+    setEditStore(item.store || DEFAULT_STORE[item.cat] || 'Walmart');
+    setShowScanPicker(false); setScanPickerSection(null); setScanPickerSearch('');
+    showToast?.(`Assigned "${item.name}" ✓`);
+  };
+
+  const closeScanPicker = () => { setShowScanPicker(false); setScanPickerSection(null); setScanPickerSearch(''); };
+
+  // Close edit modal
+  const closeEdit = () => { setEditIdx(null); closeScanPicker(); };
 
   const toggleStyle = (active) => ({
     flex: 1, padding: '10px', borderRadius: '12px', border: 'none',
@@ -807,65 +824,14 @@ export default function ShoppingList({
                   className="input-element" autoFocus />
               </div>
 
-              {/* ── Catalog assign (scan mode only) ── */}
+              {/* ── "Pick from catalog" button — scan mode only ── */}
               {editIdx === 'scanned' && (
-                <div>
-                  {/* divider */}
-                  <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
-                    <div style={{ flex:1, height:'1px', background:'rgba(255,255,255,0.06)' }} />
-                    <span style={{ fontSize:'0.62rem', fontWeight:800, color:'#64748b', letterSpacing:'0.05em', flexShrink:0 }}>
-                      OR ASSIGN FROM CATALOG
-                    </span>
-                    <div style={{ flex:1, height:'1px', background:'rgba(255,255,255,0.06)' }} />
-                  </div>
-
-                  {/* search bar */}
-                  <div style={{ position:'relative' }}>
-                    <Search size={14} style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', color:'#64748b', pointerEvents:'none' }} />
-                    <input
-                      type="text" placeholder="Search catalog items…"
-                      value={scanSearch} onChange={e => setScanSearch(e.target.value)}
-                      className="input-element"
-                      style={{ paddingLeft:'36px', paddingRight: scanSearch ? '34px' : '12px' }}
-                    />
-                    {scanSearch && (
-                      <button onClick={() => setScanSearch('')}
-                        style={{ position:'absolute', right:'8px', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'#64748b', cursor:'pointer', padding:'6px' }}>
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* results */}
-                  {scanSearch.trim() && (() => {
-                    const hits = searchCatalog(scanSearch);
-                    return hits.length > 0 ? (
-                      <div style={{ display:'flex', flexDirection:'column', gap:'4px', marginTop:'8px', maxHeight:'180px', overflowY:'auto' }}>
-                        {hits.map((item, i) => (
-                          <button key={i} type="button"
-                            onClick={() => {
-                              setEditName(item.name);
-                              setEditCat(item.cat);
-                              setEditStore(DEFAULT_STORE[item.cat] || 'Walmart');
-                              setScanSearch('');
-                              showToast?.(`Assigned "${item.name}" ✓`);
-                            }}
-                            style={{ display:'flex', alignItems:'center', gap:'10px', padding:'11px 13px', background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.22)', borderRadius:'12px', cursor:'pointer', textAlign:'left', width:'100%', transition:'background 0.15s' }}>
-                            <span style={{ fontSize:'1.15rem', flexShrink:0 }}>{getItemIcon(item.name, item.cat)}</span>
-                            <span style={{ flex:1, fontSize:'0.86rem', fontWeight:700, color:'#e2e8f0' }}>{item.name}</span>
-                            <span style={{ fontSize:'0.62rem', color:'#818cf8', fontWeight:800, flexShrink:0, background:'rgba(99,102,241,0.15)', padding:'3px 7px', borderRadius:'6px' }}>
-                              {CATEGORIES[item.cat]?.label}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize:'0.75rem', color:'#64748b', textAlign:'center', padding:'10px 0', marginTop:'4px' }}>
-                        No matches — just edit the name above
-                      </div>
-                    );
-                  })()}
-                </div>
+                <button type="button" onClick={() => setShowScanPicker(true)} className="outline-btn"
+                  style={{ justifyContent:'flex-start', gap:'10px', borderColor:'rgba(99,102,241,0.35)', color:'#a5b4fc' }}>
+                  <Search size={16} />
+                  <span>Pick correct item from catalog</span>
+                  <ArrowLeft size={14} style={{ marginLeft:'auto', transform:'rotate(180deg)', opacity:0.5 }} />
+                </button>
               )}
 
               {/* ── Photo ── */}
@@ -912,6 +878,114 @@ export default function ShoppingList({
                 <Check size={18} /> {editIdx === 'scanned' ? 'Confirm & Add' : 'Save'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SCAN ITEM PICKER — full-screen catalog to replace a wrong scanned name ── */}
+      {showScanPicker && (
+        <div className="drawer-overlay" style={{ zIndex: 200 }} onClick={closeScanPicker}>
+          <div className="drawer-sheet" style={{ maxHeight:'92vh' }} onClick={e => e.stopPropagation()}>
+
+            {/* Sticky header */}
+            <div style={stickyTop}>
+              <div className="drawer-drag-handle" style={{ marginTop:0 }} />
+              <div className="drawer-header" style={{ marginBottom:'16px' }}>
+                {scanPickerSection ? (
+                  <button onClick={() => { setScanPickerSection(null); setScanPickerSearch(''); }}
+                    style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'10px', padding:'8px 12px', cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', gap:'6px', fontSize:'0.82rem', fontWeight:700, minHeight:'44px' }}>
+                    <ArrowLeft size={16} /> Back
+                  </button>
+                ) : (
+                  <h3 style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                    <Search size={18} className="text-primary" /> Pick Correct Item
+                  </h3>
+                )}
+                <button onClick={closeScanPicker}
+                  style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'12px', color:'#94a3b8', cursor:'pointer', width:'44px', height:'44px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div style={{ position:'relative' }}>
+                <Search size={15} style={{ position:'absolute', left:'13px', top:'50%', transform:'translateY(-50%)', color:'#64748b', pointerEvents:'none' }} />
+                <input type="text" placeholder="Search any item…" value={scanPickerSearch}
+                  onChange={e => {
+                    setScanPickerSearch(e.target.value);
+                    if (e.target.value) setScanPickerSection('__search__');
+                    else if (scanPickerSection === '__search__') setScanPickerSection(null);
+                  }}
+                  className="input-element" style={{ paddingLeft:'38px', paddingRight: scanPickerSearch ? '36px' : '14px' }} autoFocus />
+                {scanPickerSearch && (
+                  <button onClick={() => { setScanPickerSearch(''); setScanPickerSection(null); }}
+                    style={{ position:'absolute', right:'10px', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'#64748b', cursor:'pointer', padding:'8px' }}>
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Category grid — shown when nothing selected/searched */}
+            {!scanPickerSection && !scanPickerSearch && (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', paddingBottom:'8px' }}>
+                {Object.entries(CATEGORIES).filter(([key]) => CATALOG[key]?.length > 0).map(([key, cat]) => (
+                  <button key={key} onClick={() => setScanPickerSection(key)}
+                    style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'18px', padding:'20px 14px', cursor:'pointer', textAlign:'left', display:'flex', flexDirection:'column', gap:'6px', minHeight:'90px' }}>
+                    <span style={{ fontSize:'2rem' }}>{cat.icon}</span>
+                    <span style={{ fontSize:'0.88rem', fontWeight:800, color:'#e2e8f0' }}>{cat.label}</span>
+                    <span style={{ fontSize:'0.66rem', color:'#64748b' }}>{CATALOG[key]?.length} items</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Items list — search results or category drill-down */}
+            {(scanPickerSection || scanPickerSearch) && (() => {
+              const items = getScanPickerItems();
+              if (scanPickerSection && scanPickerSection !== '__search__' && !scanPickerSearch) {
+                return (
+                  <div>
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'12px' }}>
+                      <span style={{ fontSize:'1.3rem' }}>{CATEGORIES[scanPickerSection]?.icon}</span>
+                      <span style={{ fontFamily:'var(--font-title)', fontSize:'1rem', fontWeight:800 }}>{CATEGORIES[scanPickerSection]?.label}</span>
+                      <span style={{ fontSize:'0.68rem', color:'#64748b', marginLeft:'auto' }}>{items.length} items</span>
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                      {items.map((item, i) => (
+                        <button key={i} type="button"
+                          onClick={() => assignScannedItem(item)}
+                          style={{ display:'flex', alignItems:'center', gap:'12px', padding:'13px 14px', background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'13px', cursor:'pointer', textAlign:'left', width:'100%', minHeight:'52px' }}>
+                          <span style={{ fontSize:'1.3rem', flexShrink:0, width:'30px', textAlign:'center' }}>{getItemIcon(item.name, item.cat)}</span>
+                          <span style={{ flex:1, fontSize:'0.9rem', fontWeight:700, color:'#e2e8f0' }}>{item.name}</span>
+                          <Check size={15} style={{ color:'#6366f1', flexShrink:0, opacity:0.6 }} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              // search results
+              return items.length > 0 ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                  {items.map((item, i) => (
+                    <button key={i} type="button"
+                      onClick={() => assignScannedItem(item)}
+                      style={{ display:'flex', alignItems:'center', gap:'12px', padding:'13px 14px', background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'13px', cursor:'pointer', textAlign:'left', width:'100%', minHeight:'52px' }}>
+                      <span style={{ fontSize:'1.3rem', flexShrink:0, width:'30px', textAlign:'center' }}>{getItemIcon(item.name, item.cat)}</span>
+                      <span style={{ flex:1, fontSize:'0.9rem', fontWeight:700, color:'#e2e8f0' }}>{item.name}</span>
+                      <span style={{ fontSize:'0.62rem', color:'#818cf8', fontWeight:800, background:'rgba(99,102,241,0.15)', padding:'3px 8px', borderRadius:'6px', flexShrink:0 }}>
+                        {CATEGORIES[item.cat]?.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign:'center', padding:'32px', color:'#64748b', fontSize:'0.82rem' }}>
+                  No items match "{scanPickerSearch}"
+                </div>
+              );
+            })()}
+
+            <div style={{ height:'16px' }} />
           </div>
         </div>
       )}
