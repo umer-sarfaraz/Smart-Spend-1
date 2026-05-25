@@ -2,8 +2,8 @@
 // primary model is exhausted the next one picks up automatically.
 const MODELS = [
   'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-8b',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-flash-latest',
 ];
 
 export default async function handler(req, res) {
@@ -43,11 +43,12 @@ export default async function handler(req, res) {
         })
       });
 
-      // 429 = quota exhausted for this model — try the next one
-      if (response.status === 429) {
+      // 429 = quota exhausted, 404 = model name not available in this region/version
+      // — skip and try the next model for both
+      if (response.status === 429 || response.status === 404) {
         const err = await response.json().catch(() => ({}));
-        lastError = err.error?.message || `${model} quota reached`;
-        console.warn(`[gemini] ${model} quota reached, trying next model`);
+        lastError = err.error?.message || `${model} unavailable (${response.status})`;
+        console.warn(`[gemini] ${model} unavailable (${response.status}), trying next model`);
         continue;
       }
 
