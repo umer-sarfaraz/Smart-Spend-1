@@ -1,10 +1,10 @@
-// Models tried in order — each has its own daily quota pool so if the
-// primary model is exhausted the next one picks up automatically.
+// Models tried in order — each has its own daily quota pool.
+// 2.0 models use v1beta; stable 1.5 models use v1 (they are not on v1beta).
 const MODELS = [
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-1.5-flash-8b',
-  'gemini-1.5-flash',
+  { id: 'gemini-2.0-flash',      api: 'v1beta' },
+  { id: 'gemini-2.0-flash-lite', api: 'v1beta' },
+  { id: 'gemini-1.5-flash',      api: 'v1'     },
+  { id: 'gemini-1.5-flash-8b',   api: 'v1'     },
 ];
 
 export default async function handler(req, res) {
@@ -31,9 +31,9 @@ export default async function handler(req, res) {
 
   let lastError = 'Gemini API error';
 
-  for (const model of MODELS) {
+  for (const { id, api } of MODELS) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/${api}/models/${id}:generateContent?key=${apiKey}`;
 
       const response = await fetch(url, {
         method: 'POST',
@@ -44,12 +44,11 @@ export default async function handler(req, res) {
         })
       });
 
-      // 429 = quota exhausted, 404 = model name not available in this region/version
-      // — skip and try the next model for both
+      // 429 = quota exhausted, 404 = model not available — skip and try next
       if (response.status === 429 || response.status === 404) {
         const err = await response.json().catch(() => ({}));
-        lastError = err.error?.message || `${model} unavailable (${response.status})`;
-        console.warn(`[gemini] ${model} unavailable (${response.status}), trying next model`);
+        lastError = err.error?.message || `${id} unavailable (${response.status})`;
+        console.warn(`[gemini] ${id} (${api}) status ${response.status}, trying next`);
         continue;
       }
 
@@ -73,21 +72,19 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: `JSON parse failed: ${parseErr.message}`, raw: cleaned.slice(0, 500) });
       }
 
-      // Tag which model was actually used (helpful for debugging)
-      parsed._model = model;
+      parsed._model = id;
       return res.status(200).json(parsed);
 
     } catch (error) {
       lastError = error.message;
-      console.warn(`[gemini] ${model} threw: ${error.message}`);
-      // Network errors — don't try next model, just fail fast
+      console.warn(`[gemini] ${id} threw: ${error.message}`);
       if (/fetch|network/i.test(error.message)) break;
     }
   }
 
-  // All models failed (all quota exhausted or network error)
+  // All models failed
   return res.status(429).json({
     error: `All models failed. Last: ${lastError}`,
-    tried: MODELS
+    tried: MODELS.map(m => m.id)
   });
 }
