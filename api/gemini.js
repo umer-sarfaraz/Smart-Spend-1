@@ -3,7 +3,8 @@
 const MODELS = [
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
-  'gemini-1.5-flash-latest',
+  'gemini-1.5-flash-8b',
+  'gemini-1.5-flash',
 ];
 
 export default async function handler(req, res) {
@@ -86,6 +87,7 @@ export default async function handler(req, res) {
 
   // All models failed (all quota exhausted or network error)
   return res.status(429).json({
-    error: `All AI models quota reached. The free Gemini API resets daily — try again tomorrow, or add billing at aistudio.google.com. Last error: ${lastError}`
+    error: `All models failed. Last: ${lastError}`,
+    tried: MODELS
   });
 }
