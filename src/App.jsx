@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import Dashboard from './components/Dashboard';
-import History from './components/History';
+import Reports from './components/Reports';
 import Settings from './components/Settings';
 import Scanner from './components/Scanner';
 import ManualForm from './components/ManualForm';
@@ -401,7 +401,7 @@ export default function App() {
         )}
 
         {activeTab === 'history' && (
-          <History
+          <Reports
             expenses={expenses}
             onDelete={handleDeleteExpense}
             viewMode={historyViewMode}
