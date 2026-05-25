@@ -255,86 +255,92 @@ export function parseOcrTextOffline(text) {
   return { merchant, date, isGasMeter, items };
 }
 
-// Store-specific prompt hints injected into the Gemini prompt for better accuracy
-const STORE_HINTS = {
-  restaurant_depot: `
-STORE: This is a Restaurant Depot wholesale food distributor receipt. Use these rules:
-- Items appear in MULTI-LINE blocks: line 1 = item name, line 2 = 12-13 digit UPC barcode, line 3 = tax code + sometimes weight info, then price right-aligned.
-- STRIP all 12-13 digit UPC barcodes — they are not part of the item name.
-- STRIP tax code tokens: "(TA)", "U(TA)", "(TX)", "N" — these are tax indicators, not part of the name.
-- STRIP "UNITS 1", "CASES ENTERED 0", "ITEMS RUNG UP", "UNITS COUNT", "TOTAL RW ITEMS" — these are footer labels, not items.
-- Weight-based pricing format: "(TA)10.05LB@$6.73LB  $67.64" means 10.05 lbs at $6.73/lb = $67.64. Use the final right-aligned price ($67.64) and write name as "Beef Ground 90% Halal (10.05 lb)".
-- Case format: "6/5LB" = case of 6 units each 5 lb. "CHZ PS MOZZ SH GAL 6/5LB" → "Mozzarella Shredded Gallon 6×5 lb".
-- Always include bulk size in name: "Atta Flour 20 lb", "Chicken Breast 40 lb", "All-Purpose Flour 25 lb".
-- The rightmost dollar amount on each item block is the extended price (what was charged). Use that.`,
-
-  costco: `
-STORE: This is a Costco Wholesale receipt.
-- Strip 6-7 digit Costco item numbers that appear before item names.
-- Items are bulk/large quantity. Include size in name ("Kirkland Chicken Breast 6 lb").
-- Format: item number, description, quantity, unit price, extended price. Use extended price.`,
-
-  walmart: `
-STORE: This is a Walmart retail receipt.
-- Two-column format: item description left, price right.
-- Strip trailing tax codes: T = taxable, X = taxable, N = non-taxable.
-- Weight stickers show "XX LB @ $X.XX/LB" — use the extended price and include weight in name.`,
-
-  lotte: `
-STORE: This is a Lotte Plaza Asian supermarket receipt.
-- May contain Korean, Chinese, or Japanese product abbreviations — translate to readable English names.
-- Focus: fresh Asian produce, seafood, Korean/Japanese packaged foods.
-- Standard retail single-line format.`,
-
-  halal: `
-STORE: This is a halal butcher / Middle Eastern grocery receipt.
-- Focus: halal meats, Middle Eastern pantry items.
-- Weight-based pricing common for fresh cuts.
-- May have Arabic or Urdu product names — translate to English.`,
-
-  gas: `
-STORE: This is a gas station fuel receipt or pump display.
-- Set isGasMeter: true.
-- Extract as a single fuel item: gallons pumped, price per gallon, total.
-- Name format: "Unleaded Fuel (12.8 gal @ $3.51/gal)".`,
-
-  general: '',
-};
-
-// 6. Gemini Receipt Parser — calls the server-side proxy (/api/gemini)
-// The API key is stored as a Vercel environment variable; clients never see it.
+// 6. Gemini Vision Receipt Parser — sends image directly to Gemini
 // storeHint: 'general' | 'restaurant_depot' | 'costco' | 'walmart' | 'lotte' | 'halal' | 'gas'
 export async function parseWithGemini(base64Image, mimeType, storeHint = 'general') {
-  const storeContext = STORE_HINTS[storeHint] || '';
+  const today = new Date().toISOString().split('T')[0];
 
-  const prompt = `You are a receipt scanning engine for a personal mobile expense app.
-Analyze this photo — it could be a retail grocery receipt, a wholesale/bulk store receipt, or a gas pump display.
-${storeContext}
+  // Each store gets its own tightly-scoped prompt so Gemini knows exactly what to expect
+  const prompts = {
 
-Extract:
-1. The merchant/store name (e.g. "Restaurant Depot", "Costco", "Walmart", "Chevron").
-2. The transaction date in YYYY-MM-DD format (use today's date if not clearly visible).
-3. Whether this is a gas station pump display screen (isGasMeter: true/false).
-4. Every purchased line item with its correct extended price (the final charged amount per line).
+    restaurant_depot: `You are scanning a RESTAURANT DEPOT wholesale food receipt photo.
 
-GENERAL rules (apply to all stores unless overridden above):
-- STRIP item/product codes — wholesale receipts often have 5-8 digit codes before item names. Remove them.
-- For weight-based items (e.g. "15.62 LB @ $1.29/LB  $20.15"), use the extended price ($20.15) and include weight in name.
-- For case/pack items (e.g. "2 CS TOMATO SAUCE  $18.00"), write a clean name like "Tomato Sauce (2 cases)".
-- Clean up abbreviated OCR names into readable English (e.g. "ORG TMT 25LB" → "Organic Tomatoes 25 lb").
-- Skip lines for tax, fees, total, subtotal, discounts, payments, or coupons.
+Restaurant Depot receipts have this EXACT layout per item:
+  Line 1 → Item name in ALL CAPS, heavily abbreviated, e.g.:
+            "CHX GV PATTY HALAL 10LBS"   = Halal Chicken Patties 10 lb       → $23.24
+            "BF GROUND 90%HALAL 10LB"    = Ground Beef 90% Halal 10 lb       → $67.64
+            "PD GARLIC LOOSE 6/5LB"      = Garlic Loose 6×5 lb               → $14.44
+            "FLOR A/P LENZ BEST 25LB"    = All-Purpose Flour Best 25 lb      → $10.28
+            "CHZ PS MOZZ SH GAL 6/5LB"   = Mozzarella Shredded Gallon 6×5 lb → $15.01
+            "SWARNA CHAKKI ATTA 20LBS"   = Swarna Chakki Atta Flour 20 lb    → $15.57
+            "CHIC BRST MED SIZE"          = Chicken Breast Medium Size        → $86.00
+  Line 2 → 12–13 digit UPC barcode. IGNORE — do NOT include in name.
+  Line 3 → Tax code "(TA)" or "U(TA)". For weight items also shows e.g. "(TA)40LB@$2.15LB"
+  Line 4 → "UNITS 1" and the final price right-aligned, e.g. "UNITS 1    $23.24"
 
-Categorize each item into exactly one of these 14 categories:
+PRICE = the last dollar amount in each item block. For weight items like
+"(TA)40LB@$2.15LB" the final price $86.00 appears on the next line — use $86.00.
+
+IGNORE these lines entirely: all 12–13 digit barcodes, "(TA)", "U(TA)", "UNITS 1",
+"UNITS ENTERED", "CASES ENTERED", "ITEMS RUNG UP", "TOTAL RW ITEMS", "UNITS COUNT",
+the transaction header (e.g. "C16 I10736 DP287941"), and any TOTAL/TAX lines.
+
+ABBREVIATIONS: CHX=Chicken | BF GROUND=Ground Beef | PD=Produce | FLOR=Flour
+A/P=All-Purpose | CHZ=Cheese | MOZZ=Mozzarella | SH=Shredded | GAL=Gallon
+CHIC BRST=Chicken Breast | MED=Medium | GV=Giant Value (can omit)
+SIZES: 10LBS→"10 lb" | 20LBS→"20 lb" | 25LB→"25 lb" | 6/5LB→"6×5 lb" | 40LB→"40 lb"
+
+Merchant = "Restaurant Depot". Date from receipt header or use ${today}.
+
+Return ONLY valid JSON, no markdown, no code fences:
+{"merchant":"Restaurant Depot","date":"${today}","isGasMeter":false,"items":[{"name":"Halal Chicken Patties 10 lb","amount":23.24,"category":"meat"},{"name":"Garlic Loose 6x5 lb","amount":14.44,"category":"vegetables"}]}`,
+
+    costco: `You are scanning a COSTCO WHOLESALE receipt photo.
+Strip 6–7 digit item numbers. Include pack size in name. Use extended (rightmost) price.
+Date from receipt or use ${today}.
+Return ONLY valid JSON no markdown: {"merchant":"Costco","date":"${today}","isGasMeter":false,"items":[{"name":"Item","amount":0.00,"category":"other"}]}`,
+
+    walmart: `You are scanning a WALMART retail receipt photo.
+Two-column format: name left, price right. Strip tax codes T/X/N after prices.
+Date from receipt or use ${today}.
+Return ONLY valid JSON no markdown: {"merchant":"Walmart","date":"${today}","isGasMeter":false,"items":[{"name":"Item","amount":0.00,"category":"other"}]}`,
+
+    lotte: `You are scanning a LOTTE PLAZA Asian supermarket receipt photo.
+Translate Korean/Chinese/Japanese abbreviations to English. Standard retail format.
+Date from receipt or use ${today}.
+Return ONLY valid JSON no markdown: {"merchant":"Lotte Plaza","date":"${today}","isGasMeter":false,"items":[{"name":"Item","amount":0.00,"category":"other"}]}`,
+
+    halal: `You are scanning a HALAL STORE / Middle Eastern grocery receipt photo.
+Translate Arabic/Urdu names to English. Weight-based pricing common for meats.
+Date from receipt or use ${today}.
+Return ONLY valid JSON no markdown: {"merchant":"Halal Store","date":"${today}","isGasMeter":false,"items":[{"name":"Item","amount":0.00,"category":"other"}]}`,
+
+    gas: `You are scanning a GAS STATION fuel receipt or pump display photo.
+isGasMeter must be true. Single item: "Unleaded Fuel (X.XX gal @ $X.XX/gal)". Category: "fuel".
+Return ONLY valid JSON no markdown: {"merchant":"Gas Station","date":"${today}","isGasMeter":true,"items":[{"name":"Unleaded Fuel","amount":0.00,"category":"fuel"}]}`,
+
+    general: `You are scanning a retail or grocery receipt photo.
+Extract every purchased item with its price. Skip totals, tax, payment lines.
+Date from receipt or use ${today}.
+Categorize: vegetables/fruits/dairy/meat/bakery/shopping/dining/fuel/utilities/other.
+Return ONLY valid JSON no markdown: {"merchant":"Store","date":"${today}","isGasMeter":false,"items":[{"name":"Item","amount":0.00,"category":"other"}]}`,
+  };
+
+  const basePrompt = prompts[storeHint] || prompts.general;
+
+  // Append universal category and format rules
+  const prompt = `${basePrompt}
+
+CATEGORIES for all items — pick exactly one:
 "vegetables","fruits","dairy","meat","bakery","rent","utilities","fuel","dining","fitness","education","shopping","entertainment","other"
 
-Return EXACTLY a JSON object with no markdown formatting, no code fences:
+REQUIRED OUTPUT FORMAT — return ONLY this JSON structure, nothing else:
 {
-  "merchant": "Restaurant Depot",
-  "date": "2026-05-24",
+  "merchant": "Store Name",
+  "date": "YYYY-MM-DD",
   "isGasMeter": false,
   "items": [
-    { "name": "Halal Chicken Patties 10 lb", "amount": 23.24, "category": "meat" },
-    { "name": "Garlic Loose 6×5 lb", "amount": 14.44, "category": "vegetables" }
+    { "name": "Clean Item Name", "amount": 12.34, "category": "meat" }
   ]
 }`;
 
@@ -351,6 +357,17 @@ Return EXACTLY a JSON object with no markdown formatting, no code fences:
 
   return await response.json();
 }
+
+// Shared store hints for the text-based parser (used as fallback)
+const STORE_HINTS = {
+  restaurant_depot: 'Restaurant Depot wholesale receipt.',
+  costco: 'Costco Wholesale receipt.',
+  walmart: 'Walmart retail receipt.',
+  lotte: 'Lotte Plaza Asian supermarket receipt.',
+  halal: 'Halal store / Middle Eastern grocery receipt.',
+  gas: 'Gas station fuel receipt. Set isGasMeter: true.',
+  general: 'General retail receipt.',
+};
 
 // 7. NEW PRIMARY PARSER: Send OCR text to Gemini for intelligent parsing
 // This is more reliable than sending the image — Gemini's text reasoning >> its vision OCR

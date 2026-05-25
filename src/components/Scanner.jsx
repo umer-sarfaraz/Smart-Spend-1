@@ -69,12 +69,12 @@ export default function Scanner({ onClose, onSave }) {
     }
   };
 
-  // Resize + compress image to max 1600px, JPEG quality 0.82
-  // Keeps text legible for Gemini while staying well under Vercel's 10MB limit
+  // Resize image for Gemini Vision — higher quality than before so small receipt text is sharp
+  // 2400px / JPEG 0.92 keeps text crisp while staying under Vercel's body limit
   const compressImage = (dataUrl) => new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 1600;
+      const MAX = 2400;
       let { width, height } = img;
       if (width > MAX || height > MAX) {
         if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
@@ -83,7 +83,7 @@ export default function Scanner({ onClose, onSave }) {
       const c = document.createElement('canvas');
       c.width = width; c.height = height;
       c.getContext('2d').drawImage(img, 0, 0, width, height);
-      resolve(c.toDataURL('image/jpeg', 0.82).split(',')[1]);
+      resolve(c.toDataURL('image/jpeg', 0.92).split(',')[1]);
     };
     img.src = dataUrl;
   });
@@ -111,74 +111,74 @@ export default function Scanner({ onClose, onSave }) {
     e.target.value = '';
   };
 
-  // ─── NEW PROCESSING PIPELINE ────────────────────────────────────────────────
-  // Tier 1: Tesseract OCR  → raw text  (dedicated OCR engine)
-  // Tier 2: Gemini Text AI → JSON      (text reasoning, most accurate)
-  // Tier 3: Offline regex  → JSON      (no network needed)
-  // Tier 4: Gemini Vision  → JSON      (fallback if OCR failed completely)
-  // Tier 5: Empty form                 (manual entry)
+  // ─── PROCESSING PIPELINE ────────────────────────────────────────────────────
+  // Tier 1: Gemini Vision (image → JSON directly) — most accurate, reads actual image
+  // Tier 2: Tesseract OCR → Gemini Text           — if vision API is down
+  // Tier 3: Tesseract OCR → Offline regex         — fully offline fallback
+  // Tier 4: Empty form                             — manual entry
+  //
+  // WHY Vision first: Tesseract badly mangles thermal receipt fonts/layouts.
+  // Gemini Vision sees the original image and reads text far more accurately.
   const processCapturedImage = async (base64, mimeType) => {
     stopCamera();
     setScanMode('processing');
     setUsedAI(false);
 
     try {
-      // ── TIER 1: OCR the image with Tesseract ─────────────────────────────
-      let rawText = '';
-      try {
-        setStatusMessage('Reading receipt text...');
-        const worker = await createWorker('eng', 1, {
-          logger: m => {
-            if (m.status === 'recognizing text') {
-              setStatusMessage(`Reading text... ${Math.round((m.progress || 0) * 100)}%`);
-            }
-          }
-        });
-        const { data: { text } } = await worker.recognize(`data:${mimeType};base64,${base64}`);
-        await worker.terminate();
-        rawText = text.trim();
-      } catch (ocrErr) {
-        console.warn('Tesseract OCR error:', ocrErr.message);
-      }
-
       let newResult = null;
 
-      if (rawText.length > 40) {
-        // ── TIER 2: Send OCR text to Gemini for intelligent parsing ──────
-        // Gemini reads TEXT far better than images for complex receipt layouts
-        try {
-          setStatusMessage('AI reading receipt...');
-          newResult = await parseTextWithGemini(rawText, storeType);
-          setUsedAI(true);
-        } catch (textErr) {
-          console.warn('Gemini text parse failed:', textErr.message);
+      // ── TIER 1: Gemini Vision reads the image directly ───────────────────
+      try {
+        setStatusMessage('AI reading receipt...');
+        newResult = await parseWithGemini(base64, mimeType, storeType);
+        setUsedAI(true);
+      } catch (visionErr) {
+        console.warn('Gemini Vision failed:', visionErr.message);
 
-          // ── TIER 3: Offline regex parser on OCR text ─────────────────
-          setStatusMessage('Parsing offline...');
-          newResult = parseOcrTextOffline(rawText);
-          if (!newResult.items.length ||
-              (newResult.items.length === 1 && newResult.items[0].name === 'General Purchase')) {
-            newResult.items = [{ name: '', amount: 0, category: 'other' }];
+        // ── TIER 2 + 3: Tesseract OCR → try Gemini Text, then offline ────
+        let rawText = '';
+        try {
+          setStatusMessage('Reading text with OCR...');
+          const worker = await createWorker('eng', 1, {
+            logger: m => {
+              if (m.status === 'recognizing text') {
+                setStatusMessage(`OCR reading... ${Math.round((m.progress || 0) * 100)}%`);
+              }
+            }
+          });
+          const { data: { text } } = await worker.recognize(`data:${mimeType};base64,${base64}`);
+          await worker.terminate();
+          rawText = text.trim();
+        } catch (ocrErr) {
+          console.warn('Tesseract OCR failed:', ocrErr.message);
+        }
+
+        if (rawText.length > 40) {
+          // Tier 2: OCR text → Gemini text parser
+          try {
+            setStatusMessage('AI parsing text...');
+            newResult = await parseTextWithGemini(rawText, storeType);
+            setUsedAI(true);
+          } catch (textErr) {
+            // Tier 3: OCR text → offline regex
+            setStatusMessage('Parsing offline...');
+            newResult = parseOcrTextOffline(rawText);
+            if (!newResult.items.length ||
+                (newResult.items.length === 1 && newResult.items[0].name === 'General Purchase')) {
+              newResult.items = [{ name: '', amount: 0, category: 'other' }];
+            }
           }
         }
       }
 
+      // ── TIER 4: Nothing worked → blank form ──────────────────────────────
       if (!newResult) {
-        // ── TIER 4: No OCR text → fall back to Gemini Vision directly ───
-        try {
-          setStatusMessage('Trying AI vision...');
-          newResult = await parseWithGemini(base64, mimeType, storeType);
-          setUsedAI(true);
-        } catch (visionErr) {
-          console.warn('Gemini vision failed:', visionErr.message);
-          // ── TIER 5: Completely failed → empty form for manual entry ──
-          newResult = {
-            merchant: 'Scanned Receipt',
-            date: new Date().toISOString().split('T')[0],
-            isGasMeter: false,
-            items: [{ name: '', amount: 0, category: 'other' }]
-          };
-        }
+        newResult = {
+          merchant: 'Scanned Receipt',
+          date: new Date().toISOString().split('T')[0],
+          isGasMeter: false,
+          items: [{ name: '', amount: 0, category: 'other' }]
+        };
       }
 
       const newCount = scanCount + 1;
