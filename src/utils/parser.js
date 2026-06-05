@@ -19,6 +19,57 @@ export const CATEGORIES = {
   other: { label: 'General / Other', icon: '\u{1F4E6}', color: '#9ca3af', gradient: 'linear-gradient(135deg, #4b5563, #9ca3af)' }
 };
 
+export const ITEM_CATALOG = {
+  vegetables: [
+    'Asparagus', 'Broccoli', 'Cabbage', 'Carrots', 'Cauliflower', 'Celery',
+    'Corn', 'Cucumber', 'Eggplant', 'Garlic', 'Green Beans', 'Green Onions',
+    'Jalapenos', 'Kale', 'Lettuce', 'Mushrooms', 'Okra', 'Onions',
+    'Peas', 'Peppers', 'Potatoes', 'Spinach', 'Sweet Potatoes', 'Tomatoes', 'Zucchini',
+  ],
+  fruits: [
+    'Apples', 'Avocado', 'Bananas', 'Blueberries', 'Cantaloupe', 'Cherries',
+    'Coconut', 'Grapes', 'Kiwi', 'Lemons', 'Limes', 'Mangoes',
+    'Oranges', 'Peaches', 'Pears', 'Pineapple', 'Plums', 'Pomegranate',
+    'Raspberries', 'Strawberries', 'Watermelon',
+  ],
+  dairy: [
+    'Butter', 'Cheddar Cheese', 'Cottage Cheese', 'Cream Cheese', 'Eggs',
+    'Feta Cheese', 'Greek Yogurt', 'Heavy Cream', 'Milk 1 Gallon',
+    'Mozzarella Cheese', 'Parmesan', 'Ricotta', 'Shredded Cheese',
+    'Sour Cream', 'Whipped Cream', 'Yogurt',
+  ],
+  meat: [
+    'Bacon', 'Beef Steak', 'Chicken Breast', 'Chicken Thighs', 'Chicken Wings',
+    'Crab', 'Ground Beef', 'Ground Turkey', 'Halal Chicken', 'Hot Dogs',
+    'Lamb Chops', 'Lobster', 'Pork Chops', 'Salmon Fillet', 'Sausage',
+    'Shrimp', 'Tilapia', 'Tuna', 'Turkey Breast',
+  ],
+  bakery: [
+    'All-Purpose Flour', 'Atta Flour 20lb', 'Basmati Rice', 'Black Beans',
+    'Bread', 'Brown Sugar', 'Canola Oil Gallon', 'Canned Tomatoes',
+    'Cereal', 'Chickpeas', 'Coffee Beans', 'Crackers', 'Honey',
+    'Jam', 'Lentils', 'Lipton Tea Bags', 'Oats', 'Olive Oil',
+    'Pasta', 'Peanut Butter', 'Rice Bag', 'Salt', 'Soy Sauce',
+    'Spaghetti', 'Sugar', 'Tomato Sauce', 'Tortillas', 'Vinegar',
+    'White Rice', 'Whole Wheat Bread',
+  ],
+  shopping: [
+    'Aluminum Foil', 'Bleach', 'Body Wash', 'Conditioner',
+    'Deodorant', 'Dish Soap', 'Fabric Softener', 'Hand Soap',
+    'Laundry Detergent', 'Lays Chips', 'Mineral Water Case',
+    'Paper Towels', 'Plastic Wrap', 'Sandwich Bags', 'Shampoo',
+    'Soda Cans 12-pack', 'Soap Bar', 'Toothbrush', 'Toothpaste',
+    'Toilet Paper 24-pack', 'Trash Bags',
+  ],
+  dining: [
+    'Coffee Creamer', 'Espresso Pods', 'Herbal Tea', 'Instant Noodles',
+    'Protein Shake', 'Red Bull', 'Sparkling Water',
+  ],
+  other: [
+    'Batteries', 'Candles', 'First Aid Kit', 'Vitamins', 'Zip Lock Bags',
+  ],
+};
+
 // 2. Local Keyword Dictionary for Offline Parsing
 const DICTIONARY = [
   // Vegetables

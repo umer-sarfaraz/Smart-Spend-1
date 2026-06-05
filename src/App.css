@@ -956,6 +956,46 @@ input, select, textarea {
   cursor: pointer;
 }
 
+.scan-catalog-tabs {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 2px 0 10px;
+  margin-bottom: 10px;
+  scrollbar-width: none;
+}
+
+.scan-catalog-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.scan-catalog-tabs button {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  color: #94a3b8;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.scan-catalog-tabs button.active {
+  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(99, 102, 241, 0.16);
+  color: #e0e7ff;
+}
+
+.scan-catalog-tabs button span {
+  font-size: 1rem;
+}
+
 .scan-catalog-search {
   display: flex;
   align-items: center;

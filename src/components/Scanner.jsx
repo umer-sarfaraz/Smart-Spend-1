@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { CATEGORIES, parseWithGemini } from '../utils/parser';
+import { CATEGORIES, ITEM_CATALOG, parseWithGemini } from '../utils/parser';
 import { Camera, FileImage, Sparkles, Check, X, Plus, Trash2, ArrowLeft, Edit3, BookOpen, Search } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -35,6 +35,7 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
   const [catalogPickerIdx, setCatalogPickerIdx] = useState(null);
   const [catalogSearch, setCatalogSearch] = useState('');
   const [catalogItems, setCatalogItems] = useState([]);
+  const [catalogCategory, setCatalogCategory] = useState('other');
 
   // Load catalog items from localStorage whenever picker opens
   useEffect(() => {
@@ -44,6 +45,7 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
         setCatalogItems(stored ? JSON.parse(stored) : []);
       } catch { setCatalogItems([]); }
       setCatalogSearch('');
+      setCatalogCategory(parsedData?.items?.[catalogPickerIdx]?.category || 'other');
     }
   }, [catalogPickerIdx]);
 
@@ -197,6 +199,12 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
   const closeCatalogPicker = () => {
     setCatalogPickerIdx(null);
     setCatalogSearch('');
+  };
+
+  const openCatalogPicker = (idx) => {
+    setCatalogPickerIdx(idx);
+    setCatalogCategory(parsedData?.items?.[idx]?.category || 'other');
+    setOpenPicker(null);
   };
 
   // Assign scanned item to an existing catalog entry (copies name + category)
@@ -387,8 +395,20 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
     if (!parsedData) return null;
     const total = parsedData.items.reduce((s, i) => s + (i.amount || 0), 0);
     const selectedCatalogItem = catalogPickerIdx !== null ? parsedData.items[catalogPickerIdx] : null;
-    const filteredCatalogItems = catalogItems.filter(c =>
-      c?.name?.toLowerCase().includes(catalogSearch.toLowerCase())
+    const builtInCatalogItems = (ITEM_CATALOG[catalogCategory] || []).map(name => ({
+      id: `builtin-${catalogCategory}-${name}`,
+      name,
+      category: catalogCategory,
+    }));
+    const savedCategoryItems = catalogItems
+      .filter(c => (c?.category || 'other') === catalogCategory)
+      .map(c => ({ ...c, id: c.id || `saved-${c.name}` }));
+    const categoryCatalogItems = [...savedCategoryItems, ...builtInCatalogItems]
+      .filter((item, idx, arr) =>
+        arr.findIndex(other => other.name.toLowerCase() === item.name.toLowerCase()) === idx
+      );
+    const filteredCatalogItems = categoryCatalogItems.filter(c =>
+      !catalogSearch || c?.name?.toLowerCase().includes(catalogSearch.toLowerCase())
     );
 
     return (
@@ -496,7 +516,7 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
                 {/* Catalog assign button */}
                 <button
                   type="button"
-                  onClick={e => { e.stopPropagation(); setCatalogPickerIdx(idx); setOpenPicker(null); }}
+                  onClick={e => { e.stopPropagation(); openCatalogPicker(idx); }}
                   title="Fix item name from catalog"
                   style={{background:'rgba(99,102,241,0.06)', border:'1px solid rgba(99,102,241,0.2)', color:'#a5b4fc', padding:'8px', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', flexShrink:0}}
                 >
@@ -549,7 +569,7 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
               <div className="drawer-drag-handle" />
               <div className="scan-catalog-header">
                 <div>
-                  <div className="scan-catalog-kicker">Fix scanned item</div>
+                  <div className="scan-catalog-kicker">Choose from {CATEGORIES[catalogCategory]?.label || 'Catalog'}</div>
                   <h3>{selectedCatalogItem.name?.trim() || 'Unnamed item'}</h3>
                 </div>
                 <button type="button" className="scan-catalog-close" onClick={closeCatalogPicker}>
@@ -576,22 +596,38 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
                 Save this as a new catalog item
               </button>
 
+              <div className="scan-catalog-tabs">
+                {Object.entries(CATEGORIES)
+                  .filter(([key]) => ITEM_CATALOG[key]?.length || catalogItems.some(c => (c?.category || 'other') === key))
+                  .map(([key, category]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => { setCatalogCategory(key); setCatalogSearch(''); }}
+                      className={catalogCategory === key ? 'active' : ''}
+                    >
+                      <span>{category.icon}</span>
+                      {category.label}
+                    </button>
+                  ))}
+              </div>
+
               <div className="scan-catalog-search">
                 <Search size={15} />
                 <input
                   type="text"
-                  placeholder="Search existing catalog items"
+                  placeholder={`Filter ${CATEGORIES[catalogCategory]?.label || 'items'}`}
                   value={catalogSearch}
                   onChange={e => setCatalogSearch(e.target.value)}
                 />
               </div>
 
               <div className="scan-catalog-results">
-                {catalogItems.length === 0 && (
-                  <p className="scan-catalog-empty">No catalog items yet. Save this item first, then future scans can be reassigned here.</p>
+                {categoryCatalogItems.length === 0 && (
+                  <p className="scan-catalog-empty">No items saved in this category yet. Use the category tabs or save this scanned item as new.</p>
                 )}
-                {catalogItems.length > 0 && filteredCatalogItems.length === 0 && (
-                  <p className="scan-catalog-empty">No matching catalog item.</p>
+                {categoryCatalogItems.length > 0 && filteredCatalogItems.length === 0 && (
+                  <p className="scan-catalog-empty">No matching item in {CATEGORIES[catalogCategory]?.label || 'this category'}.</p>
                 )}
                 {filteredCatalogItems.map((c, ci) => (
                   <button
