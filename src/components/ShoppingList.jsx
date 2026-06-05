@@ -210,6 +210,7 @@ export default function ShoppingList({
   listItems, onAddItem, onToggleItem, onDeleteItem, onUpdateItem,
   onClearCheckedItems,
   customStores, onAddCustomStore, customSuggestions, showToast,
+  stores = [], customCats = [], onUpdateCustomCats,
 }) {
   const [mode,      setMode]      = useState('planning');
   const [showBought,setShowBought]= useState(false);
@@ -493,6 +494,11 @@ export default function ShoppingList({
       {/* ══ PLANNING MODE ════════════════════════════════════════════════════ */}
       {mode === 'planning' && (
         <>
+          {/* Browse catalog button */}
+          <div className="browse-catalog-btn" onClick={openCatalog}>
+            🗂 Browse Grocery Catalog
+          </div>
+
           {safe.length === 0 ? (
             <div className="glass-card" style={{ textAlign:'center', padding:'52px 20px' }}>
               <ShoppingBag size={44} style={{ margin:'0 auto 16px', opacity:0.15, display:'block' }} />
@@ -1059,11 +1065,8 @@ function CatalogRow({ item, inList, onAdd }) {
       }}
     >
       <span style={{ fontSize:'1.2rem', flexShrink:0, width:'28px', textAlign:'center' }}>{icon}</span>
-      <span style={{ flex:1, fontSize:'0.88rem', fontWeight:600 }}>{item.name}</span>
-      {inList
-        ? <Check size={16} style={{ color:'#10b981', flexShrink:0 }} />
-        : <Plus  size={16} style={{ color:'#6366f1', flexShrink:0 }} />
-      }
+      <span style={{ flex:1, fontSize:'0.88rem', fontWeight:600, color: inList ? '#10b981' : '#f1f5f9' }}>{item.name}</span>
+      {inList && <span style={{ fontSize:'0.72rem', color:'#10b981', fontWeight:700, flexShrink:0 }}>✓ Added</span>}
     </div>
   );
 }

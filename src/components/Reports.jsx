@@ -1,616 +1,293 @@
 import React, { useState, useMemo } from 'react';
 import { CATEGORIES } from '../utils/parser';
-import {
-  BarChart2, ScrollText,
-  ChevronDown, ChevronUp,
-  TrendingUp, TrendingDown, Minus,
-  Calendar, ShoppingCart
-} from 'lucide-react';
-import History from './History';
+import { TrendingUp, ShoppingCart, X, Trash2 } from 'lucide-react';
 
-// ─── Period helpers ────────────────────────────────────────────────────────────
+const CAT_GRAD = {
+  vegetables:'#10b981', fruits:'#f43f5e', dairy:'#94a3b8', meat:'#fb7185',
+  bakery:'#fbbf24', dining:'#f97316', fuel:'#fbbf24', utilities:'#818cf8',
+  shopping:'#2dd4bf', entertainment:'#f472b6', fitness:'#a3e635',
+  education:'#22d3ee', rent:'#818cf8', other:'#9ca3af'
+};
 
-const PERIODS = [
-  { key: 'week',    label: 'Week'    },
-  { key: 'month',   label: 'Month'   },
-  { key: 'quarter', label: 'Quarter' },
-  { key: 'year',    label: 'Year'    },
-  { key: 'custom',  label: 'Custom'  },
-];
+export default function Reports({ expenses, onDelete }) {
+  const [period, setPeriod]       = useState('monthly');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo,   setCustomTo]   = useState('');
+  const [bdMode,     setBdMode]     = useState('category');
+  const [filterKey,  setFilterKey]  = useState(null);
+  const [detailExp,  setDetailExp]  = useState(null);
 
-function getPeriodRanges(period, customFrom, customTo) {
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
+  // ── Pool filtered by period ──────────────────────────────────────────────────
+  const pool = useMemo(() => {
+    const now   = new Date();
+    const today = now.toISOString().split('T')[0];
+    if (period === 'today') return expenses.filter(e => e.date === today);
+    if (period === 'weekly') {
+      const d = new Date(); d.setDate(d.getDate() - 7);
+      return expenses.filter(e => e.date >= d.toISOString().split('T')[0]);
+    }
+    if (period === 'monthly') {
+      const key = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      return expenses.filter(e => e.date.startsWith(key));
+    }
+    if (period === 'custom' && customFrom && customTo)
+      return expenses.filter(e => e.date >= customFrom && e.date <= customTo);
+    return expenses;
+  }, [expenses, period, customFrom, customTo]);
 
-  if (period === 'week') {
-    const curStart = new Date();
-    curStart.setDate(curStart.getDate() - 6);
-    curStart.setHours(0, 0, 0, 0);
-    const prevEnd = new Date(curStart.getTime() - 1);
-    const prevStart = new Date(prevEnd);
-    prevStart.setDate(prevStart.getDate() - 6);
-    prevStart.setHours(0, 0, 0, 0);
-    return {
-      current: { start: curStart, end: today },
-      previous: { start: prevStart, end: prevEnd },
-      label: 'Last 7 days', prevLabel: 'Prior 7 days'
-    };
-  }
+  const periodTotal = pool.reduce((s, e) => s + e.amount, 0);
 
-  if (period === 'month') {
+  const periodLabel = () => {
     const now = new Date();
-    const curStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const prevEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    return {
-      current: { start: curStart, end: today },
-      previous: { start: prevStart, end: prevEnd },
-      label: now.toLocaleString('default', { month: 'long', year: 'numeric' }),
-      prevLabel: prevStart.toLocaleString('default', { month: 'short' })
-    };
-  }
+    if (period === 'today')   return 'Today';
+    if (period === 'weekly')  return 'Last 7 Days';
+    if (period === 'monthly') return now.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    if (period === 'custom' && customFrom && customTo) {
+      const fmt = s => new Date(s+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      return `${fmt(customFrom)} – ${fmt(customTo)}`;
+    }
+    return 'All Time';
+  };
 
-  if (period === 'quarter') {
-    const now = new Date();
-    const q = Math.floor(now.getMonth() / 3);
-    const curStart = new Date(now.getFullYear(), q * 3, 1);
-    const prevStart = new Date(now.getFullYear(), q * 3 - 3, 1);
-    const prevEnd = new Date(now.getFullYear(), q * 3, 0, 23, 59, 59);
-    const prevQ = ((q - 1) + 4) % 4;
-    const prevYear = q === 0 ? now.getFullYear() - 1 : now.getFullYear();
-    return {
-      current: { start: curStart, end: today },
-      previous: { start: prevStart, end: prevEnd },
-      label: `Q${q + 1} ${now.getFullYear()}`,
-      prevLabel: `Q${prevQ + 1} ${prevYear}`
-    };
-  }
+  // ── Breakdown data ───────────────────────────────────────────────────────────
+  const bdRows = useMemo(() => {
+    if (bdMode === 'category') {
+      const t = {};
+      pool.forEach(e => e.items.forEach(i => { const c = i.category||'other'; t[c]=(t[c]||0)+i.amount; }));
+      return Object.entries(t).sort((a,b)=>b[1]-a[1]).map(([key,amt]) => ({
+        key, label: CATEGORIES[key]?.label || key,
+        icon: CATEGORIES[key]?.icon || '📦',
+        bg: `${CATEGORIES[key]?.color||'#6366f1'}18`,
+        fill: CAT_GRAD[key]||'#6366f1', amt,
+        pct: periodTotal > 0 ? Math.round(amt/periodTotal*100) : 0
+      }));
+    } else {
+      const t = {};
+      pool.forEach(e => { t[e.merchant]=(t[e.merchant]||0)+e.amount; });
+      const colors = ['#6366f1','#10b981','#f59e0b','#f43f5e','#8b5cf6','#0ea5e9','#f97316'];
+      return Object.entries(t).sort((a,b)=>b[1]-a[1]).map(([key,amt],i) => ({
+        key, label: key, icon: '🏪',
+        bg: 'rgba(99,102,241,0.1)', fill: colors[i%colors.length], amt,
+        pct: periodTotal > 0 ? Math.round(amt/periodTotal*100) : 0
+      }));
+    }
+  }, [pool, bdMode, periodTotal]);
 
-  if (period === 'year') {
-    const now = new Date();
-    const curStart = new Date(now.getFullYear(), 0, 1);
-    const prevStart = new Date(now.getFullYear() - 1, 0, 1);
-    const prevEnd = new Date(now.getFullYear(), 0, 0, 23, 59, 59);
-    return {
-      current: { start: curStart, end: today },
-      previous: { start: prevStart, end: prevEnd },
-      label: String(now.getFullYear()),
-      prevLabel: String(now.getFullYear() - 1)
-    };
-  }
+  // ── Filtered transaction list ────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    if (!filterKey) return pool;
+    if (bdMode === 'category') return pool.filter(e => e.items.some(i=>(i.category||'other')===filterKey));
+    return pool.filter(e => e.merchant === filterKey);
+  }, [pool, filterKey, bdMode]);
 
-  // custom
-  const start = customFrom
-    ? new Date(customFrom + 'T00:00:00')
-    : new Date(Date.now() - 30 * 86400000);
-  const end = customTo ? new Date(customTo + 'T23:59:59') : today;
-  return { current: { start, end }, previous: null, label: 'Custom range', prevLabel: null };
-}
-
-function filterExpenses(expenses, range) {
-  return expenses.filter(exp => {
-    const d = new Date(exp.date + 'T12:00:00');
-    return d >= range.start && d <= range.end;
-  });
-}
-
-function flatItems(expenses) {
-  const out = [];
-  expenses.forEach(exp =>
-    exp.items.forEach(it => out.push({ ...it, date: exp.date, merchant: exp.merchant }))
-  );
-  return out;
-}
-
-function groupByName(items) {
-  const m = {};
-  items.forEach(it => {
-    if (!m[it.name]) m[it.name] = { name: it.name, total: 0, count: 0, purchases: [] };
-    m[it.name].total += it.amount;
-    m[it.name].count++;
-    m[it.name].purchases.push(it);
-  });
-  return Object.values(m).sort((a, b) => b.total - a.total);
-}
-
-// ─── Delta helpers ─────────────────────────────────────────────────────────────
-
-function deltaColor(delta) {
-  if (Math.abs(delta) < 0.005) return '#64748b';
-  // Spending less = good = green; spending more = bad = red
-  return delta > 0 ? '#f87171' : '#34d399';
-}
-
-function fmtDelta(delta) {
-  const sign = delta >= 0 ? '+' : '−';
-  return `${sign}$${Math.abs(delta).toFixed(2)}`;
-}
-
-function DeltaBadge({ delta }) {
-  if (Math.abs(delta) < 0.005) return null;
-  const color = deltaColor(delta);
-  const Icon = delta > 0 ? TrendingUp : TrendingDown;
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '3px',
-      fontSize: '0.65rem', fontWeight: 700, color,
-      background: `${color}18`, padding: '2px 7px', borderRadius: '20px'
-    }}>
-      <Icon size={10} /> {fmtDelta(delta)}
-    </span>
-  );
-}
-
-// ─── Main component ────────────────────────────────────────────────────────────
-
-export default function Reports({
-  expenses, onDelete,
-  viewMode, setViewMode,
-  activeCategoryFilter, setActiveCategoryFilter
-}) {
-  const [view,        setView]        = useState('reports'); // 'reports' | 'ledger'
-  const [period,      setPeriod]      = useState('month');
-  const [customFrom,  setCustomFrom]  = useState('');
-  const [customTo,    setCustomTo]    = useState('');
-  const [expandedCat, setExpandedCat] = useState(null);   // category key
-  const [expandedItem,setExpandedItem]= useState(null);   // "catKey__itemName"
-
-  // ── Date ranges ──────────────────────────────────────────────────────────────
-  const ranges = useMemo(
-    () => getPeriodRanges(period, customFrom, customTo),
-    [period, customFrom, customTo]
-  );
-
-  const curExp  = useMemo(() => filterExpenses(expenses, ranges.current),                    [expenses, ranges]);
-  const prevExp = useMemo(() => ranges.previous ? filterExpenses(expenses, ranges.previous) : [], [expenses, ranges]);
-
-  const curItems  = useMemo(() => flatItems(curExp),  [curExp]);
-  const prevItems = useMemo(() => flatItems(prevExp), [prevExp]);
-
-  const curTotal  = curExp.reduce((s, e) => s + e.amount, 0);
-  const prevTotal = prevExp.reduce((s, e) => s + e.amount, 0);
-  const totalDelta = curTotal - prevTotal;
-
-  // ── Category rows (sorted by current spend, skip zero) ───────────────────────
-  const categoryRows = useMemo(() => {
-    return Object.entries(CATEGORIES).map(([key, meta]) => {
-      const cItems = curItems.filter(it => (it.category || 'other') === key);
-      const pItems = prevItems.filter(it => (it.category || 'other') === key);
-      const cur  = cItems.reduce((s, i) => s + i.amount, 0);
-      const prev = pItems.reduce((s, i) => s + i.amount, 0);
-      return { key, meta, cur, prev, items: cItems };
-    })
-    .filter(r => r.cur > 0)
-    .sort((a, b) => b.cur - a.cur);
-  }, [curItems, prevItems]);
-
-  const maxBar = Math.max(1, ...categoryRows.map(r => Math.max(r.cur, r.prev)));
-
-  // ── Top 5 most purchased by frequency ────────────────────────────────────────
-  const topItems = useMemo(() => {
-    const m = {};
-    curItems.forEach(it => {
-      const k = it.name.toLowerCase();
-      if (!m[k]) m[k] = { name: it.name, count: 0, total: 0, cat: it.category || 'other' };
-      m[k].count++;
-      m[k].total += it.amount;
+  const grouped = useMemo(() => {
+    const g = {};
+    filtered.forEach(e => {
+      const d = new Date(e.date+'T12:00');
+      const k = d.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+      if (!g[k]) g[k] = { items:[], total:0 };
+      g[k].items.push(e);
+      g[k].total += e.amount;
     });
-    return Object.values(m).sort((a, b) => b.count - a.count).slice(0, 5);
-  }, [curItems]);
+    return g;
+  }, [filtered]);
 
-  // ── Quick stats ───────────────────────────────────────────────────────────────
-  const quickStats = useMemo(() => {
-    const grocery   = curItems.filter(i => ['vegetables','fruits','dairy','meat','bakery'].includes(i.category)).reduce((s,i) => s+i.amount, 0);
-    const fuel      = curItems.filter(i => i.category === 'fuel').reduce((s,i) => s+i.amount, 0);
-    const utilities = curItems.filter(i => i.category === 'utilities').reduce((s,i) => s+i.amount, 0);
-    return [
-      { label: 'Grocery',   val: grocery,   icon: '🥦' },
-      { label: 'Fuel',      val: fuel,      icon: '⛽' },
-      { label: 'Utilities', val: utilities, icon: '⚡' },
-    ];
-  }, [curItems]);
+  const relDate = s => {
+    const diff = Math.round((Date.now()-new Date(s+'T12:00'))/864e5);
+    if (diff===0) return 'Today'; if (diff===1) return 'Yesterday';
+    if (diff<7) return diff+' days ago';
+    return new Date(s+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  };
 
-  // ── Shared toggle style ───────────────────────────────────────────────────────
-  const toggleBtn = (active) => ({
-    flex: 1, padding: '10px', borderRadius: '12px', border: 'none',
-    background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
-    color: active ? '#fff' : '#64748b',
-    fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-    transition: 'all 0.18s'
-  });
+  // ── Merchant total for detail sheet ─────────────────────────────────────────
+  const merchantTotal = detailExp
+    ? pool.filter(e=>e.merchant===detailExp.merchant).reduce((s,e)=>s+e.amount,0)
+    : 0;
+  const merchantVisits = detailExp
+    ? pool.filter(e=>e.merchant===detailExp.merchant).length
+    : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
-      {/* ── Reports / Ledger top toggle ── */}
-      <div style={{
-        display: 'flex', background: 'rgba(255,255,255,0.03)',
-        padding: '4px', borderRadius: '16px',
-        border: '1px solid rgba(255,255,255,0.06)', gap: '4px'
-      }}>
-        <button style={toggleBtn(view === 'reports')} onClick={() => setView('reports')}>
-          <BarChart2 size={15} /> Reports
-        </button>
-        <button style={toggleBtn(view === 'ledger')} onClick={() => setView('ledger')}>
-          <ScrollText size={15} /> Ledger
-        </button>
+    <div>
+      {/* Time filter tabs */}
+      <div className="time-tabs">
+        {[['today','Today'],['weekly','Week'],['monthly','Month'],['custom','Custom']].map(([k,l]) => (
+          <div key={k} className={`time-tab${period===k?' active':''}`}
+            onClick={() => { setPeriod(k); setFilterKey(null); if(k!=='custom'){setCustomFrom('');setCustomTo('');} }}>
+            {l}
+          </div>
+        ))}
       </div>
 
-      {/* ══════════════════════════════════════════════════════════
-          LEDGER VIEW — pass straight through to existing History
-      ══════════════════════════════════════════════════════════ */}
-      {view === 'ledger' && (
-        <History
-          expenses={expenses}
-          onDelete={onDelete}
-          viewMode={viewMode}
-          setViewMode={setViewMode}
-          activeCategoryFilter={activeCategoryFilter}
-          setActiveCategoryFilter={setActiveCategoryFilter}
-        />
+      {/* Custom date range */}
+      {period === 'custom' && (
+        <div className="date-range-row">
+          <input type="date" className="date-range-input" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} />
+          <span className="date-range-sep">→</span>
+          <input type="date" className="date-range-input" value={customTo}   onChange={e=>setCustomTo(e.target.value)} />
+        </div>
       )}
 
-      {/* ══════════════════════════════════════════════════════════
-          REPORTS VIEW
-      ══════════════════════════════════════════════════════════ */}
-      {view === 'reports' && (
-        <>
-          {/* Period tabs */}
-          <div style={{
-            display: 'flex', background: 'rgba(255,255,255,0.02)',
-            padding: '4px', borderRadius: '14px',
-            border: '1px solid rgba(255,255,255,0.06)', gap: '3px'
-          }}>
-            {PERIODS.map(p => (
-              <button
-                key={p.key}
-                onClick={() => { setPeriod(p.key); setExpandedCat(null); setExpandedItem(null); }}
-                style={{
-                  flex: 1, padding: '8px 2px', borderRadius: '10px', border: 'none',
-                  background: period === p.key ? 'rgba(99,102,241,0.2)' : 'transparent',
-                  color: period === p.key ? '#a5b4fc' : '#64748b',
-                  fontWeight: 700, fontSize: '0.68rem', cursor: 'pointer',
-                  borderBottom: period === p.key ? '2px solid #6366f1' : '2px solid transparent',
-                  transition: 'all 0.15s'
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
+      {/* Period banner */}
+      <div className="period-banner">
+        <span className="period-banner-lbl">{periodLabel()}</span>
+        <span className="period-banner-amt">${periodTotal.toFixed(2)} spent</span>
+      </div>
+
+      {/* Breakdown card */}
+      <div className="glass-card" style={{marginBottom:12}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          <h2 className="section-title" style={{marginBottom:0}}>
+            <TrendingUp size={16} style={{marginRight:6,verticalAlign:'middle'}} />
+            Breakdown
+          </h2>
+          <span style={{fontSize:'0.62rem',color:'#64748b',fontWeight:700}}>Tap row to filter ↓</span>
+        </div>
+
+        {/* By Category / By Store toggle */}
+        <div style={{display:'flex',gap:6,marginBottom:12}}>
+          {[['category','By Category'],['store','By Store']].map(([k,l]) => (
+            <button key={k}
+              onClick={() => { setBdMode(k); setFilterKey(null); }}
+              style={{
+                flex:1, padding:'7px', borderRadius:11, border:'1.5px solid',
+                fontFamily:'var(--font-body)', fontSize:'0.72rem', fontWeight:700, cursor:'pointer',
+                background: bdMode===k?'rgba(99,102,241,0.12)':'rgba(255,255,255,0.04)',
+                borderColor: bdMode===k?'#6366f1':'rgba(255,255,255,0.08)',
+                color: bdMode===k?'white':'#64748b'
+              }}
+            >{l}</button>
+          ))}
+        </div>
+
+        {bdRows.length === 0 ? (
+          <p style={{fontSize:'0.75rem',color:'#64748b',textAlign:'center',padding:'12px 0'}}>
+            No data for this period.
+          </p>
+        ) : bdRows.map(r => (
+          <div key={r.key} className="breakdown-row" onClick={() => setFilterKey(filterKey===r.key?null:r.key)}>
+            <div className="breakdown-icon" style={{background:r.bg}}>{r.icon}</div>
+            <div className="breakdown-meta">
+              <div className="breakdown-name" style={{color:filterKey===r.key?'#a5b4fc':undefined}}>{r.label}</div>
+              <div className="breakdown-bar-bg">
+                <div className="breakdown-bar-fill" style={{width:`${r.pct}%`,background:r.fill}} />
+              </div>
+            </div>
+            <div style={{textAlign:'right',flexShrink:0}}>
+              <div className="breakdown-amount">${r.amt.toFixed(2)}</div>
+              <div className="breakdown-pct">{r.pct}%</div>
+            </div>
           </div>
+        ))}
+      </div>
 
-          {/* Custom date range */}
-          {period === 'custom' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div className="input-group">
-                <label>From</label>
-                <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} className="input-element" />
-              </div>
-              <div className="input-group">
-                <label>To</label>
-                <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="input-element" />
-              </div>
-            </div>
-          )}
+      {/* Active filter bar */}
+      {filterKey && (
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 14px',marginBottom:10,background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:13}}>
+          <span style={{fontSize:'0.76rem',fontWeight:700,color:'white'}}>Showing: {filterKey}</span>
+          <button onClick={()=>setFilterKey(null)} style={{background:'none',border:'none',color:'#6366f1',fontFamily:'var(--font-body)',fontSize:'0.72rem',fontWeight:700,cursor:'pointer'}}>✕ Clear</button>
+        </div>
+      )}
 
-          {/* Hero summary card */}
-          <div style={{
-            background: 'linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%)',
-            border: '1px solid rgba(99,102,241,0.3)',
-            borderRadius: '20px', padding: '20px'
-          }}>
-            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>
-              {ranges.label}
-            </div>
-            <div style={{ fontFamily: 'var(--font-title)', fontSize: '2.4rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: '14px' }}>
-              ${curTotal.toFixed(2)}
-            </div>
-            {ranges.previous && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                  vs {ranges.prevLabel}: <strong style={{ color: '#e2e8f0' }}>${prevTotal.toFixed(2)}</strong>
-                </span>
-                <DeltaBadge delta={totalDelta} />
-              </div>
-            )}
-            {curExp.length === 0 && (
-              <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '6px' }}>No expenses recorded yet for this period.</div>
-            )}
+      {/* Transaction list */}
+      {Object.keys(grouped).length === 0 ? (
+        <div style={{textAlign:'center',padding:'40px 16px',color:'#64748b'}}>
+          <div style={{fontSize:'2.4rem',marginBottom:10}}>📊</div>
+          <p style={{fontSize:'0.82rem',fontWeight:600}}>No transactions for this period.</p>
+        </div>
+      ) : Object.entries(grouped).map(([month, { items, total }]) => (
+        <div key={month} style={{marginBottom:20}}>
+          <div style={{fontSize:'0.67rem',fontWeight:800,textTransform:'uppercase',letterSpacing:'0.07em',color:'#64748b',marginBottom:9,padding:'0 2px'}}>
+            {month} · ${total.toFixed(2)} total
           </div>
-
-          {/* Quick stats: Grocery | Fuel | Utilities */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-            {quickStats.map(s => (
-              <div key={s.label} className="glass-card" style={{ padding: '12px 10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.2rem', marginBottom: '5px' }}>{s.icon}</div>
-                <div style={{ fontFamily: 'var(--font-title)', fontWeight: 800, fontSize: '0.95rem', color: '#fff' }}>
-                  ${s.val.toFixed(2)}
+          {items.map(e => {
+            const info = CATEGORIES[e.items?.[0]?.category] || CATEGORIES['other'];
+            return (
+              <div key={e.id} className="glass-card" style={{padding:'13px',marginBottom:8,cursor:'pointer',display:'flex',alignItems:'center',gap:12}}
+                onClick={()=>setDetailExp(e)}>
+                <div style={{width:44,height:44,borderRadius:14,background:`${info.color}18`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.15rem',flexShrink:0}}>
+                  {info.icon}
                 </div>
-                <div style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* ── Category breakdown ─────────────────────────────────────── */}
-          {categoryRows.length > 0 ? (
-            <div>
-              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '10px' }}>
-                Category Breakdown — tap to expand
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                {categoryRows.map(row => {
-                  const isOpen = expandedCat === row.key;
-                  const delta  = row.cur - row.prev;
-                  const hasPrev = !!ranges.previous;
-                  const curPct  = (row.cur  / maxBar) * 100;
-                  const prevPct = (row.prev / maxBar) * 100;
-                  const itemGroups = groupByName(row.items);
-
-                  return (
-                    <div key={row.key}>
-
-                      {/* ── Category bar row (clickable) ── */}
-                      <button
-                        onClick={() => {
-                          setExpandedCat(isOpen ? null : row.key);
-                          setExpandedItem(null);
-                        }}
-                        style={{
-                          width: '100%', textAlign: 'left', background: 'none',
-                          border: 'none', cursor: 'pointer', padding: '10px 2px',
-                          borderRadius: isOpen ? '14px 14px 0 0' : '14px'
-                        }}
-                      >
-                        {/* Label row */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '7px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '1rem' }}>{row.meta.icon}</span>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e2e8f0' }}>{row.meta.label}</span>
-                            {hasPrev && row.prev > 0 && <DeltaBadge delta={delta} />}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontFamily: 'var(--font-title)', fontWeight: 800, color: '#fff', fontSize: '0.9rem' }}>
-                              ${row.cur.toFixed(2)}
-                            </span>
-                            {isOpen
-                              ? <ChevronUp  size={14} style={{ color: '#64748b', flexShrink: 0 }} />
-                              : <ChevronDown size={14} style={{ color: '#64748b', flexShrink: 0 }} />
-                            }
-                          </div>
-                        </div>
-
-                        {/* Progress bar (current + ghosted previous overlay) */}
-                        <div style={{ position: 'relative', height: '7px', background: 'rgba(255,255,255,0.06)', borderRadius: '99px', overflow: 'hidden' }}>
-                          {hasPrev && row.prev > 0 && (
-                            <div style={{
-                              position: 'absolute', top: 0, left: 0, height: '100%',
-                              width: `${prevPct}%`,
-                              background: 'rgba(148,163,184,0.22)',
-                              borderRadius: '99px'
-                            }} />
-                          )}
-                          <div style={{
-                            position: 'absolute', top: 0, left: 0, height: '100%',
-                            width: `${curPct}%`,
-                            background: row.meta.gradient || row.meta.color,
-                            borderRadius: '99px',
-                            transition: 'width 0.4s ease'
-                          }} />
-                        </div>
-                      </button>
-
-                      {/* ── INLINE EXPANDED DETAIL ─────────────────────────────── */}
-                      {isOpen && (
-                        <div style={{
-                          background: 'rgba(255,255,255,0.025)',
-                          border: '1px solid rgba(255,255,255,0.07)',
-                          borderTop: 'none',
-                          borderRadius: '0 0 16px 16px',
-                          padding: '14px',
-                          marginBottom: '6px'
-                        }}>
-
-                          {/* 4-chip insight grid */}
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
-                            <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '10px' }}>
-                              <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>This period</div>
-                              <div style={{ fontFamily: 'var(--font-title)', fontWeight: 800, fontSize: '1.15rem', color: '#fff', marginTop: '3px' }}>${row.cur.toFixed(2)}</div>
-                            </div>
-                            <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '10px' }}>
-                              <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Items bought</div>
-                              <div style={{ fontFamily: 'var(--font-title)', fontWeight: 800, fontSize: '1.15rem', color: '#fff', marginTop: '3px' }}>{row.items.length}</div>
-                            </div>
-                            {hasPrev && (
-                              <>
-                                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '10px' }}>
-                                  <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Prev period</div>
-                                  <div style={{ fontFamily: 'var(--font-title)', fontWeight: 800, fontSize: '1.15rem', color: '#94a3b8', marginTop: '3px' }}>${row.prev.toFixed(2)}</div>
-                                </div>
-                                <div style={{
-                                  background: `${deltaColor(delta)}10`,
-                                  border: `1px solid ${deltaColor(delta)}22`,
-                                  borderRadius: '12px', padding: '10px'
-                                }}>
-                                  <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Change</div>
-                                  <div style={{
-                                    fontFamily: 'var(--font-title)', fontWeight: 800, fontSize: '1.05rem',
-                                    color: deltaColor(delta), marginTop: '3px',
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                  }}>
-                                    {delta > 0 ? <TrendingUp size={13} /> : delta < 0 ? <TrendingDown size={13} /> : <Minus size={13} />}
-                                    {fmtDelta(delta)}
-                                  </div>
-                                </div>
-                              </>
-                            )}
-                          </div>
-
-                          {/* This period vs previous period bars */}
-                          {hasPrev && row.prev > 0 && (
-                            <div style={{ marginBottom: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              {[
-                                { label: ranges.label,    val: row.cur,  color: row.meta.gradient || row.meta.color },
-                                { label: ranges.prevLabel, val: row.prev, color: 'rgba(148,163,184,0.3)' }
-                              ].map(bar => {
-                                const maxVal = Math.max(row.cur, row.prev, 0.01);
-                                return (
-                                  <div key={bar.label}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '5px' }}>
-                                      <span>{bar.label}</span>
-                                      <span style={{ fontWeight: 700 }}>${bar.val.toFixed(2)}</span>
-                                    </div>
-                                    <div style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '99px', overflow: 'hidden' }}>
-                                      <div style={{
-                                        width: `${(bar.val / maxVal) * 100}%`, height: '100%',
-                                        background: bar.color, borderRadius: '99px',
-                                        transition: 'width 0.45s ease'
-                                      }} />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-
-                          {/* Item list within category */}
-                          <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '8px' }}>
-                            Items
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            {itemGroups.map(group => {
-                              const itemKey  = row.key + '__' + group.name;
-                              const itemOpen = expandedItem === itemKey;
-
-                              return (
-                                <div key={group.name}>
-
-                                  {/* ── Item row (clickable) ── */}
-                                  <button
-                                    onClick={() => setExpandedItem(itemOpen ? null : itemKey)}
-                                    style={{
-                                      width: '100%', textAlign: 'left', cursor: 'pointer',
-                                      background: 'rgba(255,255,255,0.04)',
-                                      border: '1px solid rgba(255,255,255,0.07)',
-                                      borderRadius: itemOpen ? '12px 12px 0 0' : '12px',
-                                      padding: '10px 12px',
-                                      display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                                    }}
-                                  >
-                                    <div>
-                                      <div style={{ fontSize: '0.83rem', fontWeight: 700, color: '#e2e8f0' }}>{group.name}</div>
-                                      <div style={{ fontSize: '0.67rem', color: '#64748b', marginTop: '2px' }}>
-                                        {group.count}× purchased
-                                      </div>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                      <span style={{ fontFamily: 'var(--font-title)', fontWeight: 800, color: '#fff', fontSize: '0.88rem' }}>
-                                        ${group.total.toFixed(2)}
-                                      </span>
-                                      {itemOpen
-                                        ? <ChevronUp  size={12} style={{ color: '#64748b', flexShrink: 0 }} />
-                                        : <ChevronDown size={12} style={{ color: '#64748b', flexShrink: 0 }} />
-                                      }
-                                    </div>
-                                  </button>
-
-                                  {/* ── INLINE ITEM PURCHASE HISTORY ── */}
-                                  {itemOpen && (
-                                    <div style={{
-                                      background: 'rgba(255,255,255,0.015)',
-                                      border: '1px solid rgba(255,255,255,0.05)',
-                                      borderTop: 'none',
-                                      borderRadius: '0 0 12px 12px',
-                                      padding: '8px 12px',
-                                      display: 'flex', flexDirection: 'column', gap: '0'
-                                    }}>
-                                      {group.purchases.map((p, idx) => (
-                                        <div
-                                          key={idx}
-                                          style={{
-                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                            padding: '8px 0',
-                                            borderBottom: idx < group.purchases.length - 1
-                                              ? '1px solid rgba(255,255,255,0.04)' : 'none'
-                                          }}
-                                        >
-                                          <div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#e2e8f0', fontWeight: 600 }}>
-                                              <ShoppingCart size={11} style={{ color: '#64748b' }} />
-                                              {p.merchant}
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.67rem', color: '#64748b', marginTop: '2px' }}>
-                                              <Calendar size={10} /> {p.date}
-                                            </div>
-                                          </div>
-                                          <span style={{ fontFamily: 'var(--font-title)', fontWeight: 700, color: '#fff', fontSize: '0.85rem' }}>
-                                            ${p.amount.toFixed(2)}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '48px 20px', color: '#64748b' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>📊</div>
-              <p style={{ fontSize: '0.85rem', lineHeight: 1.6 }}>
-                No expenses in this period yet.<br />
-                Scan a bill or add one manually to see your breakdown.
-              </p>
-            </div>
-          )}
-
-          {/* ── Most purchased items ─────────────────────────────────── */}
-          {topItems.length > 0 && (
-            <div>
-              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '10px', marginTop: '4px' }}>
-                Most Purchased
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {topItems.map((item, idx) => (
-                  <div
-                    key={item.name}
-                    className="glass-card"
-                    style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{
-                        fontFamily: 'var(--font-title)', fontWeight: 900, fontSize: '1.1rem',
-                        color: idx === 0 ? '#fbbf24' : '#334155', width: '22px', flexShrink: 0
-                      }}>
-                        {idx + 1}
-                      </span>
-                      <div>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e2e8f0' }}>{item.name}</div>
-                        <div style={{ fontSize: '0.67rem', color: '#64748b', marginTop: '2px' }}>
-                          {CATEGORIES[item.cat]?.label || 'Other'} &bull; {item.count}× bought
-                        </div>
-                      </div>
-                    </div>
-                    <span style={{ fontFamily: 'var(--font-title)', fontWeight: 800, color: '#fff', fontSize: '0.9rem' }}>
-                      ${item.total.toFixed(2)}
-                    </span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:'0.87rem',fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.merchant}</div>
+                  <div style={{fontSize:'0.63rem',color:'#64748b',marginTop:3,textTransform:'capitalize'}}>
+                    {e.items?.[0]?.category || 'expense'}
                   </div>
-                ))}
+                </div>
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <div style={{fontSize:'0.9rem',fontWeight:800,color:'#f43f5e'}}>−${e.amount.toFixed(2)}</div>
+                  <div style={{fontSize:'0.61rem',color:'#64748b',marginTop:3}}>{relDate(e.date)}</div>
+                </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" style={{flexShrink:0,opacity:0.4}}>
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
               </div>
-            </div>
-          )}
+            );
+          })}
+        </div>
+      ))}
 
-        </>
+      {/* Transaction detail sheet */}
+      {detailExp && (
+        <div className="confirm-overlay" onClick={()=>setDetailExp(null)}>
+          <div className="confirm-box" style={{maxWidth:400,padding:'20px'}} onClick={e=>e.stopPropagation()}>
+            {/* Header */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+              <div>
+                <div style={{fontSize:'1.05rem',fontWeight:800,marginBottom:3}}>{detailExp.merchant}</div>
+                <div style={{fontSize:'0.7rem',color:'#64748b',fontWeight:600}}>
+                  {new Date(detailExp.date+'T12:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}
+                  {' · '}Total: ${detailExp.amount.toFixed(2)}
+                </div>
+              </div>
+              <button onClick={()=>setDetailExp(null)} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#94a3b8',flexShrink:0}}>
+                <X size={16}/>
+              </button>
+            </div>
+
+            {/* Line items */}
+            <div style={{marginBottom:16}}>
+              {(detailExp.items||[]).map((item,i) => {
+                const info = CATEGORIES[item.category] || CATEGORIES['other'];
+                return (
+                  <div key={i} className="txn-detail-item">
+                    <div className="txn-detail-ico" style={{background:`${info.color}18`}}>{info.icon}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:'0.84rem',fontWeight:600}}>{item.name}</div>
+                      <div style={{fontSize:'0.62rem',color:'#64748b',marginTop:2,textTransform:'capitalize'}}>{item.category}</div>
+                    </div>
+                    <div style={{fontSize:'0.86rem',fontWeight:800}}>${item.amount.toFixed(2)}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Period note */}
+            <div className="period-note">
+              <div style={{fontSize:'0.68rem',color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>
+                📅 {periodLabel()}
+              </div>
+              <div style={{fontSize:'0.92rem',fontWeight:800}}>${merchantTotal.toFixed(2)} at {detailExp.merchant}</div>
+              <div style={{fontSize:'0.65rem',color:'#64748b',marginTop:2}}>{merchantVisits} visit{merchantVisits!==1?'s':''} this period</div>
+            </div>
+
+            {/* Delete + Close */}
+            <div style={{display:'flex',gap:8,marginTop:14}}>
+              <button
+                onClick={()=>{onDelete(detailExp.id);setDetailExp(null);}}
+                style={{flex:1,padding:'11px',background:'rgba(244,63,94,0.08)',border:'1px solid rgba(244,63,94,0.2)',borderRadius:13,color:'#f43f5e',fontFamily:'var(--font-body)',fontSize:'0.82rem',fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}
+              >
+                <Trash2 size={14}/> Delete
+              </button>
+              <button
+                onClick={()=>setDetailExp(null)}
+                style={{flex:2,padding:'11px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:13,color:'#94a3b8',fontFamily:'var(--font-body)',fontSize:'0.82rem',fontWeight:700,cursor:'pointer'}}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

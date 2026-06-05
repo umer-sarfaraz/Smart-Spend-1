@@ -5,12 +5,17 @@ import { CATEGORIES } from '../utils/parser';
 
 export default function Settings({
   budget, onSaveBudget, onResetData, expenses, onSaveAllExpenses,
-  customSuggestions = [], onSaveCustomSuggestions, customStores = [], showToast
+  customSuggestions = [], onSaveCustomSuggestions, customStores = [], showToast,
+  stores = [], onUpdateStores
 }) {
   const [budgetVal, setBudgetVal] = useState(budget);
 
   // In-app confirm modal state
   const [confirmState, setConfirmState] = useState(null); // { message, onConfirm }
+
+  // Stores section
+  const [storesOpen, setStoresOpen] = useState(false);
+  const [newStoreName, setNewStoreName] = useState('');
 
   const importFileRef = useRef(null);
 
@@ -23,6 +28,14 @@ export default function Settings({
     e.preventDefault();
     onSaveBudget(parseFloat(budgetVal) || 1000);
     if (showToast) showToast('Monthly budget updated ✓');
+  };
+
+  const addStore = () => {
+    if (newStoreName.trim() && !stores.includes(newStoreName.trim())) {
+      onUpdateStores([...stores, newStoreName.trim()]);
+      setNewStoreName('');
+      if (showToast) showToast('Store added ✓');
+    }
   };
 
   // 1. CSV EXPORTER
@@ -117,7 +130,7 @@ export default function Settings({
         );
       } catch (err) {
         console.error(err);
-        if (showToast) showToast('Could not read backup — make sure it\'s a valid SmartSpend CSV', 'error');
+        if (showToast) showToast("Could not read backup — make sure it's a valid SmartSpend CSV", 'error');
       }
     };
     reader.readAsText(file);
@@ -147,11 +160,7 @@ export default function Settings({
               <p style={{ fontSize: '0.88rem', color: '#e2e8f0', lineHeight: 1.55 }}>{confirmState.message}</p>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={dismissConfirm}
-                className="outline-btn"
-                style={{ flex: 1, padding: '11px', fontSize: '0.82rem', borderRadius: '12px' }}
-              >
+              <button onClick={dismissConfirm} className="outline-btn" style={{ flex: 1, padding: '11px', fontSize: '0.82rem', borderRadius: '12px' }}>
                 Cancel
               </button>
               <button
@@ -186,7 +195,60 @@ export default function Settings({
         </form>
       </div>
 
-      {/* 2. Portability Data Utilities (Backup & Restore) */}
+      {/* 2. Stores Management */}
+      <div className="glass-card" onClick={() => setStoresOpen(!storesOpen)} style={{ cursor: 'pointer' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: '0.95rem' }}>🏪 Manage Stores</p>
+            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>Add or remove store names used across the app</p>
+          </div>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>
+            {stores.length} stores {storesOpen ? '▲' : '→'}
+          </span>
+        </div>
+        {storesOpen && (
+          <div style={{ marginTop: 14 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                className="input-element"
+                placeholder="Add new store name…"
+                value={newStoreName}
+                onChange={e => setNewStoreName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addStore();
+                  }
+                }}
+                style={{ flex: 1, padding: '10px 12px', fontSize: '0.84rem' }}
+              />
+              <button
+                className="solid-btn"
+                style={{ width: 'auto', padding: '10px 14px', borderRadius: 12 }}
+                onClick={addStore}
+              >
+                ＋
+              </button>
+            </div>
+            {stores.map((s, i) => (
+              <div key={i} className="store-list-item">
+                <span style={{ fontSize: '1rem' }}>🏪</span>
+                <span className="store-list-name">{s}</span>
+                {stores.length > 1 && (
+                  <button
+                    className="store-remove-btn"
+                    onClick={() => onUpdateStores(stores.filter((_, j) => j !== i))}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Portability Data Utilities (Backup & Restore) */}
       <div className="glass-card">
         <h2 className="section-title">📂 Data Backup & Excel Sync</h2>
         <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '14px', lineHeight: '1.4' }}>
@@ -215,7 +277,7 @@ export default function Settings({
       {/* 4. Learned Household Dictionary */}
       <div className="glass-card">
         <h2 className="section-title" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <BookOpen size={18} className="text-primary" /> Learned Household Dictionary
+          <BookOpen size={18} /> Learned Household Dictionary
         </h2>
         <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '14px', lineHeight: '1.4' }}>
           These are custom items SmartSpend has learned from your scanned photos or manual checklist edits. They pop up as quick suggestions forever!
@@ -270,56 +332,45 @@ export default function Settings({
             try {
               confetti({ particleCount: 30, spread: 40, origin: { y: 0.8 }, colors: ['#6366f1', '#10b981'] });
             } catch (err) {}
-          } else {
-            if (showToast) showToast(`"${nameInput}" is already in your dictionary`, 'info');
           }
-        }} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
+        }}>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
             <input
               name="dictName"
-              type="text"
-              placeholder="e.g. Lays Sweet Chili, Halal Ribeye"
+              placeholder="Item name (e.g. Basmati Rice)..."
               className="input-element"
-              style={{ flex: 2, padding: '10px', fontSize: '0.78rem' }}
-              required
+              style={{ flex: 1, minWidth: '140px', padding: '8px 12px', fontSize: '0.78rem' }}
             />
-            <select
-              name="dictStore"
-              className="input-element"
-              style={{ flex: 1, padding: '10px', fontSize: '0.78rem', background: '#0f172a' }}
-            >
-              {[...['Walmart', 'Costco', 'Lotte', 'Halal Store', 'Home Depot', 'Restaurant Depot'], ...customStores].map(store => (
-                <option key={store} value={store}>{store}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <select
-              name="dictCat"
-              className="input-element"
-              style={{ flex: 1, padding: '10px', fontSize: '0.78rem', background: '#0f172a' }}
-            >
-              {Object.entries(CATEGORIES).map(([key, val]) => (
-                <option key={key} value={key}>{val.icon} {val.label}</option>
-              ))}
-            </select>
-            <button type="submit" className="solid-btn" style={{ width: 'auto', padding: '10px 16px', borderRadius: '10px', fontSize: '0.78rem', display: 'flex', gap: '4px', alignItems: 'center' }}>
-              <Plus size={14} /> Add to Dictionary
+            <button type="submit" className="solid-btn" style={{ width: 'auto', padding: '8px 16px', borderRadius: '12px', fontSize: '0.78rem' }}>
+              <Plus size={14} /> Add
             </button>
           </div>
         </form>
       </div>
 
-      {/* 5. Danger Reset Database Panel */}
-      <div className="glass-card" style={{ borderColor: 'rgba(239, 68, 68, 0.15)', background: 'rgba(239, 68, 68, 0.02)' }}>
-        <h2 className="section-title" style={{ color: '#ef4444' }}>⚠️ System Actions</h2>
-        <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '14px', lineHeight: '1.4' }}>
-          Format and clear all data stored in your browser. This deletes all transactions and cannot be undone.
-        </p>
-        <button onClick={triggerReset} className="outline-btn" style={{ borderColor: 'rgba(239, 68, 68, 0.25)', color: '#ef4444', background: 'rgba(239, 68, 68, 0.04)' }}>
-          <Trash2 size={18} /> Format Local Database
-        </button>
-      </div>
+      {/* Confirm modal */}
+      {confirmState && (
+        <div className="confirm-overlay" onClick={dismissConfirm}>
+          <div className="confirm-box" onClick={e => e.stopPropagation()}>
+            <AlertTriangle size={24} style={{ color: '#f59e0b', margin: '0 auto 12px', display: 'block' }} />
+            <p style={{ textAlign: 'center', fontWeight: 600, marginBottom: '20px', lineHeight: 1.5 }}>
+              {confirmState.message}
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button className="outline-btn" onClick={dismissConfirm} style={{ flex: 1 }}>
+                <X size={16} /> Cancel
+              </button>
+              <button
+                className="solid-btn"
+                onClick={() => { confirmState.onConfirm(); dismissConfirm(); }}
+                style={{ flex: 1, background: 'linear-gradient(135deg, #ef4444, #f43f5e)' }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import Settings from './components/Settings';
 import Scanner from './components/Scanner';
 import ManualForm from './components/ManualForm';
 import ShoppingList from './components/ShoppingList';
-import { Home, ShoppingBag, History as HistoryIcon, Settings as SettingsIcon } from 'lucide-react';
+import { Home, ShoppingBag, Camera, History as HistoryIcon, Settings as SettingsIcon } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 // Seeding standard high-fidelity mockup data for immediate beautiful layout on initial load!
@@ -14,7 +14,7 @@ const DEFAULT_EXPENSES = [
   {
     id: 'seed_1',
     merchant: 'Lotte Plaza Market',
-    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 2 days ago
+    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     isGasMeter: false,
     amount: 17.48,
     items: [
@@ -27,7 +27,7 @@ const DEFAULT_EXPENSES = [
   {
     id: 'seed_2',
     merchant: 'Chevron Fuel Station',
-    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 5 days ago
+    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     isGasMeter: true,
     amount: 45.00,
     items: [
@@ -37,7 +37,7 @@ const DEFAULT_EXPENSES = [
   {
     id: 'seed_3',
     merchant: 'City Power & Water Co.',
-    date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 10 days ago
+    date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     isGasMeter: false,
     amount: 85.00,
     items: [
@@ -98,6 +98,23 @@ export default function App() {
     }
   });
 
+  // Named stores list (managed in Settings, passed to Scanner + ShoppingList)
+  const [stores, setStores] = useState(() => {
+    try {
+      const p = JSON.parse(localStorage.getItem('smartspend_stores') || 'null');
+      return Array.isArray(p) ? p : ['Walmart', 'Costco', 'Lotte', 'Halal Store', 'Home Depot', 'Restaurant Depot'];
+    } catch {
+      return ['Walmart', 'Costco', 'Lotte', 'Halal Store', 'Home Depot', 'Restaurant Depot'];
+    }
+  });
+
+  const [customCats, setCustomCats] = useState([]);
+
+  // Dashboard filter state (lifted so it persists across tab switches)
+  const [dashFilter, setDashFilter] = useState('monthly');
+  const [dashFrom, setDashFrom] = useState('');
+  const [dashTo, setDashTo] = useState('');
+
   // Navigation tab states
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -114,9 +131,8 @@ export default function App() {
     localStorage.setItem('smartspend_welcomed', '1');
     setShowWelcome(false);
   };
-  
-  // Drawer visibility states
-  const [isScanOpen, setIsScanOpen] = useState(false);
+
+  // Scanner is now a full tab — ManualForm stays as bottom sheet
   const [isManualOpen, setIsManualOpen] = useState(false);
 
   // Lifted Ledger states (allows deep-linking category breakdowns!)
@@ -124,19 +140,17 @@ export default function App() {
   const [historyCategoryFilter, setHistoryCategoryFilter] = useState('all');
 
   // 2. Automated Shared List URL Import Listener on startup!
-  // Supports composite encoding: Name:Category:Store
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const importList = params.get('importList');
-    
+
     if (importList) {
       try {
         const decoded = decodeURIComponent(importList);
         const rawItems = decoded.split(',');
-        
+
         const formattedItems = rawItems.map(rawItem => {
           const parts = rawItem.split(':');
-          
           if (parts.length >= 3) {
             return {
               name: parts[0].trim(),
@@ -154,7 +168,6 @@ export default function App() {
           }
         });
 
-        // Register any new dynamic store names parsed from partner's shared link!
         formattedItems.forEach(item => {
           const defaultStores = ['Walmart', 'Costco', 'Lotte', 'Halal Store', 'Home Depot', 'Restaurant Depot'];
           if (item.store && !defaultStores.includes(item.store) && !customStores.includes(item.store)) {
@@ -163,13 +176,9 @@ export default function App() {
         });
 
         setShoppingList(formattedItems);
-        setActiveTab('shopping'); // Switch directly to checklist!
-        
-        // Clean URL query bar instantly so it remains clean
+        setActiveTab('shopping');
         window.history.replaceState({}, document.title, window.location.pathname);
-        
-        // Confetti explosion!
-        // Confetti explosion!
+
         try {
           confetti({
             particleCount: 120,
@@ -209,6 +218,10 @@ export default function App() {
     localStorage.setItem('smartspend_custom_suggestions', JSON.stringify(customSuggestions));
   }, [customSuggestions]);
 
+  useEffect(() => {
+    localStorage.setItem('smartspend_stores', JSON.stringify(stores));
+  }, [stores]);
+
   // 4. Handlers
   const handleSaveExpense = (newExpense) => {
     setExpenses([newExpense, ...expenses]);
@@ -238,13 +251,12 @@ export default function App() {
       const newItem = typeof itemObj === 'string'
         ? { name: itemObj, checked: false, category: 'other', store: 'Walmart' }
         : itemObj;
-        
-      if (!newItem || !newItem.name) return;
-      
-      const currentList = Array.isArray(shoppingList) ? shoppingList : [];
-      setShoppingList([newItem, ...currentList]); // Prepend so new items appear at top
 
-      // ================= DYNAMIC SELF-LEARNING ENGINE =================
+      if (!newItem || !newItem.name) return;
+
+      const currentList = Array.isArray(shoppingList) ? shoppingList : [];
+      setShoppingList([newItem, ...currentList]);
+
       const cleanName = newItem.name.toLowerCase().trim();
       const defaultItemNames = [
         'eggs', 'milk 1 gallon', 'lays chips', 'organic roma tomatoes', 'fresh gala apples',
@@ -286,7 +298,6 @@ export default function App() {
 
   const handleDeleteShoppingItem = (idx) => {
     try {
-      // Use functional update so rapid/batched calls each see the latest state
       setShoppingList(prev => (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx));
     } catch (err) {
       console.error(err);
@@ -297,7 +308,6 @@ export default function App() {
     setShoppingList([]);
   };
 
-  // Remove only the checked (done) items in a single pass — fixes the broken index-loop bug
   const handleClearCheckedItems = () => {
     setShoppingList(prev => (Array.isArray(prev) ? prev : []).filter(i => !i.checked));
   };
@@ -312,7 +322,6 @@ export default function App() {
       updated[idx] = newItem;
       setShoppingList(updated);
 
-      // ================= DYNAMIC SELF-LEARNING ENGINE =================
       if (updatedFields.name) {
         const cleanName = updatedFields.name.toLowerCase().trim();
         const defaultItemNames = [
@@ -347,13 +356,6 @@ export default function App() {
     }
   };
 
-  // Dashboard Click Router: Switches view directly to categories drill down!
-  const handleSelectCategoryFromDashboard = (categoryKey) => {
-    setHistoryViewMode('items');
-    setHistoryCategoryFilter(categoryKey);
-    setActiveTab('history');
-  };
-
   return (
     <div className="app-container">
       {/* App Header */}
@@ -371,23 +373,19 @@ export default function App() {
       {/* Main View Port content based on Navigation */}
       <main className="app-content">
         {activeTab === 'dashboard' && (
-          <>
-            <Dashboard
-              expenses={expenses}
-              budget={budget}
-              onOpenScan={() => setIsScanOpen(true)}
-              onOpenManual={() => setIsManualOpen(true)}
-              onSelectCategory={handleSelectCategoryFromDashboard}
-              shoppingList={shoppingList}
-              onToggleShoppingItem={handleToggleShoppingItem}
-              onAddShoppingItem={handleAddShoppingItem}
-              onViewFullChecklist={() => setActiveTab('shopping')}
-              customStores={customStores}
-              onAddCustomStore={handleAddCustomStore}
-              onSaveBudget={setBudget}
-              showToast={showToast}
-            />
-          </>
+          <Dashboard
+            expenses={expenses}
+            budget={budget}
+            onSaveBudget={setBudget}
+            showToast={showToast}
+            dashFilter={dashFilter}
+            dashFrom={dashFrom}
+            dashTo={dashTo}
+            setDashFilter={setDashFilter}
+            setDashFrom={setDashFrom}
+            setDashTo={setDashTo}
+            onGoHistory={() => setActiveTab('history')}
+          />
         )}
 
         {activeTab === 'shopping' && (
@@ -402,6 +400,18 @@ export default function App() {
             customStores={customStores}
             onAddCustomStore={handleAddCustomStore}
             customSuggestions={customSuggestions}
+            showToast={showToast}
+            stores={stores}
+            customCats={customCats}
+            onUpdateCustomCats={setCustomCats}
+          />
+        )}
+
+        {activeTab === 'scan' && (
+          <Scanner
+            onSave={handleSaveExpense}
+            onOpenManual={() => setIsManualOpen(true)}
+            stores={stores}
             showToast={showToast}
           />
         )}
@@ -428,18 +438,13 @@ export default function App() {
             onSaveCustomSuggestions={setCustomSuggestions}
             customStores={customStores}
             showToast={showToast}
+            stores={stores}
+            onUpdateStores={setStores}
           />
         )}
       </main>
 
-      {/* Floating Overlays bottom sheets drawers */}
-      {isScanOpen && (
-        <Scanner
-          onClose={() => setIsScanOpen(false)}
-          onSave={handleSaveExpense}
-        />
-      )}
-
+      {/* ManualForm bottom sheet — opened from Scan tab */}
       {isManualOpen && (
         <ManualForm
           onClose={() => setIsManualOpen(false)}
@@ -466,7 +471,7 @@ export default function App() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '4px 0' }}>
               <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>📊</span><span>Tap the <strong>budget ring</strong> on Home to set your monthly spending limit</span></div>
-              <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>📷</span><span>Tap <strong>Scan Bill</strong> to photograph any receipt — it reads items automatically</span></div>
+              <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>📷</span><span>Tap <strong>Scan</strong> in the center of the nav bar to photograph any receipt</span></div>
               <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>🛒</span><span>Build a <strong>grocery checklist</strong> and share it with family over WhatsApp in one tap</span></div>
               <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>⚙️</span><span>Visit <strong>Settings</strong> to set your monthly budget and manage your data</span></div>
             </div>
@@ -484,14 +489,14 @@ export default function App() {
         </div>
       )}
 
-      {/* Bottom Nav Bar Controls */}
+      {/* Bottom Nav Bar — 5 tabs with center Scan button */}
       <nav className="bottom-nav">
-        <button 
-          onClick={() => setActiveTab('dashboard')} 
+        <button
+          onClick={() => setActiveTab('dashboard')}
           className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
         >
           <Home size={22} />
-          <span style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Home</span>
+          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Home</span>
           {activeTab === 'dashboard' && <div className="nav-item-indicator" />}
         </button>
 
@@ -500,25 +505,36 @@ export default function App() {
           className={`nav-item ${activeTab === 'shopping' ? 'active' : ''}`}
         >
           <ShoppingBag size={22} />
-          <span style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Checklist</span>
+          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Checklist</span>
           {activeTab === 'shopping' && <div className="nav-item-indicator" />}
         </button>
 
-        <button 
-          onClick={() => setActiveTab('history')} 
+        <button
+          onClick={() => setActiveTab('scan')}
+          className={`nav-item scan-nav-item ${activeTab === 'scan' ? 'active' : ''}`}
+        >
+          <div className="scan-circle">
+            <Camera size={22} />
+          </div>
+          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Scan</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('history')}
           className={`nav-item ${activeTab === 'history' ? 'active' : ''}`}
         >
           <HistoryIcon size={22} />
-          <span style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Reports</span>
+          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>History</span>
           {activeTab === 'history' && <div className="nav-item-indicator" />}
         </button>
 
-        <button 
-          onClick={() => setActiveTab('settings')} 
-          className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`nav-item ${activeTab === 'settings'
+? 'active' : ''}`}
         >
           <SettingsIcon size={22} />
-          <span style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Settings</span>
+          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Settings</span>
           {activeTab === 'settings' && <div className="nav-item-indicator" />}
         </button>
       </nav>
