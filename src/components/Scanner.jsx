@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CATEGORIES, parseWithGemini } from '../utils/parser';
-import { Camera, FileImage, Sparkles, Check, X, Plus, Trash2, ArrowLeft, Edit3 } from 'lucide-react';
+import { Camera, FileImage, Sparkles, Check, X, Plus, Trash2, ArrowLeft, Edit3, BookOpen, Search } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 // Store types for AI prompt tailoring
@@ -30,6 +30,22 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
 
   // Category picker state: which item's picker is open
   const [openPicker, setOpenPicker] = useState(null);
+
+  // Catalog assign popup state
+  const [catalogPickerIdx, setCatalogPickerIdx] = useState(null);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogItems, setCatalogItems] = useState([]);
+
+  // Load catalog items from localStorage whenever picker opens
+  useEffect(() => {
+    if (catalogPickerIdx !== null) {
+      try {
+        const stored = localStorage.getItem('smartspend_pantry_inventory');
+        setCatalogItems(stored ? JSON.parse(stored) : []);
+      } catch { setCatalogItems([]); }
+      setCatalogSearch('');
+    }
+  }, [catalogPickerIdx]);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -176,6 +192,45 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
 
   const handleRemoveItem = (index) => {
     setParsedData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
+  };
+
+  // Assign scanned item to an existing catalog entry (copies name + category)
+  const handleAssignFromCatalog = (idx, catalogItem) => {
+    handleItemChange(idx, 'name', catalogItem.name);
+    if (catalogItem.category) handleItemChange(idx, 'category', catalogItem.category);
+    setCatalogPickerIdx(null);
+    if (showToast) showToast(`Assigned to "${catalogItem.name}"`);
+  };
+
+  // Save current scanned item as a new catalog entry
+  const handleSaveAsCatalogItem = (idx) => {
+    const item = parsedData?.items[idx];
+    if (!item?.name?.trim()) {
+      if (showToast) showToast('Enter an item name first', 'error');
+      return;
+    }
+    try {
+      const stored = localStorage.getItem('smartspend_pantry_inventory');
+      const existing = stored ? JSON.parse(stored) : [];
+      const alreadyExists = existing.some(c => c.name.toLowerCase() === item.name.toLowerCase());
+      if (alreadyExists) {
+        if (showToast) showToast(`"${item.name}" already in catalog`);
+        setCatalogPickerIdx(null);
+        return;
+      }
+      const newEntry = {
+        id: Date.now().toString(),
+        name: item.name,
+        category: item.category || 'other',
+        originalCost: item.amount || 0,
+        fullPercent: 100,
+        scanType: 'dry',
+        lastUpdated: new Date().toISOString().split('T')[0],
+      };
+      localStorage.setItem('smartspend_pantry_inventory', JSON.stringify([...existing, newEntry]));
+      if (showToast) showToast(`"${item.name}" added to catalog ✓`);
+    } catch {}
+    setCatalogPickerIdx(null);
   };
 
   // "Scan More" — keep existing items, go back to camera
@@ -378,53 +433,129 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
           </label>
 
           {parsedData.items.map((item, idx) => (
-            <div key={idx} className="review-item-row">
-              {/* Category emoji button with popup */}
-              <div style={{position:'relative'}}>
-                <div
-                  className={`cat-emoji-btn${openPicker === idx ? ' open' : ''}`}
-                  onClick={() => setOpenPicker(openPicker === idx ? null : idx)}
-                >
-                  {CATEGORIES[item.category]?.icon || '📦'}
-                </div>
-                {openPicker === idx && (
-                  <div className="cat-picker-popup" onClick={e => e.stopPropagation()}>
-                    {Object.entries(CATEGORIES).map(([key, val]) => (
-                      <div
-                        key={key}
-                        className={`cat-picker-opt${item.category === key ? ' selected' : ''}`}
-                        onClick={() => { handleItemChange(idx, 'category', key); setOpenPicker(null); }}
-                      >
-                        <span style={{fontSize:'1.2rem'}}>{val.icon}</span>
-                        <span style={{fontSize:'0.58rem',fontWeight:700,color:'#94a3b8',lineHeight:1.2,textAlign:'center'}}>{val.label}</span>
-                      </div>
-                    ))}
+            <div key={idx} style={{position:'relative'}}>
+              <div className="review-item-row">
+                {/* Category emoji button with popup */}
+                <div style={{position:'relative'}}>
+                  <div
+                    className={`cat-emoji-btn${openPicker === idx ? ' open' : ''}`}
+                    onClick={() => { setOpenPicker(openPicker === idx ? null : idx); setCatalogPickerIdx(null); }}
+                  >
+                    {CATEGORIES[item.category]?.icon || '📦'}
                   </div>
-                )}
+                  {openPicker === idx && (
+                    <div className="cat-picker-popup" onClick={e => e.stopPropagation()}>
+                      {Object.entries(CATEGORIES).map(([key, val]) => (
+                        <div
+                          key={key}
+                          className={`cat-picker-opt${item.category === key ? ' selected' : ''}`}
+                          onClick={() => { handleItemChange(idx, 'category', key); setOpenPicker(null); }}
+                        >
+                          <span style={{fontSize:'1.2rem'}}>{val.icon}</span>
+                          <span style={{fontSize:'0.58rem',fontWeight:700,color:'#94a3b8',lineHeight:1.2,textAlign:'center'}}>{val.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <input
+                  type="text"
+                  value={item.name}
+                  placeholder="Item name"
+                  onChange={e => handleItemChange(idx, 'name', e.target.value)}
+                  className="ri-name-input"
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={item.amount}
+                  onChange={e => handleItemChange(idx, 'amount', parseFloat(e.target.value) || 0)}
+                  className="ri-amount-input"
+                />
+
+                {/* Catalog assign button */}
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setCatalogPickerIdx(catalogPickerIdx === idx ? null : idx); setOpenPicker(null); }}
+                  title="Assign from catalog or save to catalog"
+                  style={{background: catalogPickerIdx === idx ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.06)', border:`1px solid ${catalogPickerIdx === idx ? 'rgba(99,102,241,0.5)' : 'rgba(99,102,241,0.2)'}`, color:'#a5b4fc', padding:'8px', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', flexShrink:0}}
+                >
+                  <BookOpen size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleRemoveItem(idx)}
+                  style={{background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',color:'#f87171',padding:'8px',borderRadius:'8px',cursor:'pointer',display:'flex',alignItems:'center',flexShrink:0}}
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
 
-              <input
-                type="text"
-                value={item.name}
-                placeholder="Item name"
-                onChange={e => handleItemChange(idx, 'name', e.target.value)}
-                className="ri-name-input"
-              />
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={item.amount}
-                onChange={e => handleItemChange(idx, 'amount', parseFloat(e.target.value) || 0)}
-                className="ri-amount-input"
-              />
-              <button
-                type="button"
-                onClick={() => handleRemoveItem(idx)}
-                style={{background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',color:'#f87171',padding:'8px',borderRadius:'8px',cursor:'pointer',display:'flex',alignItems:'center',flexShrink:0}}
-              >
-                <Trash2 size={14} />
-              </button>
+              {/* Catalog popup */}
+              {catalogPickerIdx === idx && (
+                <div
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    position:'absolute', top:'calc(100% + 6px)', left:0, right:0, zIndex:50,
+                    background:'#0f172a', border:'1px solid rgba(99,102,241,0.3)',
+                    borderRadius:'14px', padding:'12px', boxShadow:'0 8px 32px rgba(0,0,0,0.5)',
+                  }}
+                >
+                  <div style={{fontSize:'0.7rem',fontWeight:700,color:'#6366f1',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:'10px'}}>
+                    Catalog
+                  </div>
+
+                  {/* Save as new */}
+                  <button
+                    onClick={() => handleSaveAsCatalogItem(idx)}
+                    style={{width:'100%',display:'flex',alignItems:'center',gap:'8px',padding:'8px 10px',background:'rgba(16,185,129,0.08)',border:'1px solid rgba(16,185,129,0.2)',borderRadius:'10px',color:'#34d399',fontSize:'0.78rem',fontWeight:700,cursor:'pointer',marginBottom:'10px'}}
+                  >
+                    <Plus size={14} />
+                    Save "{item.name || 'this item'}" as new catalog item
+                  </button>
+
+                  {/* Search existing */}
+                  {catalogItems.length > 0 && (
+                    <>
+                      <div style={{display:'flex',alignItems:'center',gap:'6px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'8px',padding:'6px 10px',marginBottom:'8px'}}>
+                        <Search size={12} style={{color:'#64748b',flexShrink:0}} />
+                        <input
+                          type="text"
+                          placeholder="Search catalog..."
+                          value={catalogSearch}
+                          onChange={e => setCatalogSearch(e.target.value)}
+                          style={{background:'none',border:'none',outline:'none',color:'#f1f5f9',fontSize:'0.78rem',width:'100%'}}
+                        />
+                      </div>
+                      <div style={{maxHeight:'160px',overflowY:'auto',display:'flex',flexDirection:'column',gap:'4px'}}>
+                        {catalogItems
+                          .filter(c => c.name.toLowerCase().includes(catalogSearch.toLowerCase()))
+                          .map((c, ci) => (
+                            <button
+                              key={ci}
+                              onClick={() => handleAssignFromCatalog(idx, c)}
+                              style={{display:'flex',alignItems:'center',gap:'8px',padding:'7px 10px',background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:'8px',cursor:'pointer',textAlign:'left',color:'#e2e8f0',fontSize:'0.78rem',fontWeight:600}}
+                            >
+                              <span style={{fontSize:'1rem'}}>{CATEGORIES[c.category]?.icon || '📦'}</span>
+                              <span style={{flex:1}}>{c.name}</span>
+                              <span style={{fontSize:'0.65rem',color:'#64748b'}}>{CATEGORIES[c.category]?.label}</span>
+                            </button>
+                          ))
+                        }
+                        {catalogItems.filter(c => c.name.toLowerCase().includes(catalogSearch.toLowerCase())).length === 0 && (
+                          <p style={{fontSize:'0.72rem',color:'#64748b',textAlign:'center',padding:'8px'}}>No matches</p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  {catalogItems.length === 0 && (
+                    <p style={{fontSize:'0.72rem',color:'#64748b',textAlign:'center',padding:'4px'}}>No catalog items yet — save one above to get started</p>
+                  )}
+                </div>
+              )}
             </div>
           ))}
 
@@ -461,7 +592,7 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
   };
 
   return (
-    <div style={{display:'flex',flexDirection:'column',gap:'4px'}} onClick={() => openPicker !== null && setOpenPicker(null)}>
+    <div style={{display:'flex',flexDirection:'column',gap:'4px'}} onClick={() => { openPicker !== null && setOpenPicker(null); catalogPickerIdx !== null && setCatalogPickerIdx(null); }}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'14px'}}>
         <Sparkles size={18} style={{color:'#6366f1'}} />
