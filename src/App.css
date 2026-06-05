@@ -842,6 +842,190 @@ input, select, textarea {
 .ri-amount-input:focus { border-color: #6366f1; }
 .review-total-card { display: flex; justify-content: space-between; align-items: center; padding: 14px; background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.15); border-radius: 16px; margin-bottom: 12px; }
 
+.scan-catalog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 12px calc(var(--safe-bottom) + 8px);
+  background: rgba(2, 6, 17, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.scan-catalog-sheet {
+  width: 100%;
+  max-width: 480px;
+  max-height: min(82vh, 680px);
+  overflow-y: auto;
+  background: #0f172a;
+  border: 1px solid rgba(99, 102, 241, 0.24);
+  border-radius: 24px 24px 18px 18px;
+  padding: 18px;
+  box-shadow: 0 -18px 60px rgba(0, 0, 0, 0.65);
+}
+
+.scan-catalog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.scan-catalog-kicker {
+  color: #818cf8;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.scan-catalog-header h3 {
+  color: #f8fafc;
+  font-family: var(--font-title);
+  font-size: 1.02rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.scan-catalog-close {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.scan-catalog-current {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.scan-catalog-current label {
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.scan-catalog-save-new {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.24);
+  border-radius: 13px;
+  background: rgba(16, 185, 129, 0.08);
+  color: #34d399;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.scan-catalog-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #64748b;
+}
+
+.scan-catalog-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.scan-catalog-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.scan-catalog-result {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #e2e8f0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scan-catalog-result span:nth-child(2) {
+  min-width: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.scan-catalog-result small {
+  color: #818cf8;
+  font-size: 0.62rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.scan-catalog-result-icon {
+  font-size: 1.15rem;
+  text-align: center;
+}
+
+.scan-catalog-empty {
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-align: center;
+  padding: 18px 10px;
+}
+
+@media (max-width: 390px) {
+  .review-item-row {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 66px 36px 36px;
+    gap: 6px;
+  }
+
+  .ri-name-input,
+  .ri-amount-input {
+    min-height: 38px;
+  }
+}
+
 /* ── Catalog ── */
 .catalog-view { animation: fadeIn 0.2s ease; }
 @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }

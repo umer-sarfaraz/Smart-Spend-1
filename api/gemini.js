@@ -1,13 +1,8 @@
-// Models tried in order — each has its own daily quota pool.
-// All confirmed present via ListModels as of the current deploy date.
-// gemini-1.5-x models are deprecated and no longer in the API.
+// Models tried in order. Keep this list to currently supported Gemini API text/image models.
 const MODELS = [
-  { id: 'gemini-2.5-flash',      api: 'v1beta', jsonMode: true },
-  { id: 'gemini-2.0-flash',      api: 'v1beta', jsonMode: true },
-  { id: 'gemini-2.5-flash-lite', api: 'v1beta', jsonMode: true },
-  { id: 'gemini-2.0-flash-lite', api: 'v1beta', jsonMode: true },
-  { id: 'gemini-3.1-flash-lite', api: 'v1beta', jsonMode: true },
   { id: 'gemini-3.5-flash',      api: 'v1beta', jsonMode: true },
+  { id: 'gemini-2.5-flash',      api: 'v1beta', jsonMode: true },
+  { id: 'gemini-2.5-flash-lite', api: 'v1beta', jsonMode: true },
 ];
 
 export default async function handler(req, res) {

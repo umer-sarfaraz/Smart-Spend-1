@@ -3,20 +3,20 @@
 
 // 1. Sleek Icon and Color Mapping for Categories (14 Premium Sectors)
 export const CATEGORIES = {
-  vegetables: { label: 'Vegetables', icon: '🥦', color: '#10b981', gradient: 'linear-gradient(135deg, #059669, #10b981)' },
-  fruits: { label: 'Fruits', icon: '🍎', color: '#f43f5e', gradient: 'linear-gradient(135deg, #e11d48, #f43f5e)' },
-  dairy: { label: 'Dairy & Eggs', icon: '🥛', color: '#60a5fa', gradient: 'linear-gradient(135deg, #2563eb, #60a5fa)' },
-  meat: { label: 'Meat & Seafood', icon: '🥩', color: '#fb7185', gradient: 'linear-gradient(135deg, #f43f5e, #fb7185)' },
-  bakery: { label: 'Bakery & Pantry', icon: '🍞', color: '#fbbf24', gradient: 'linear-gradient(135deg, #d97706, #fbbf24)' },
-  rent: { label: 'Rent & Housing', icon: '🏠', color: '#818cf8', gradient: 'linear-gradient(135deg, #4f46e5, #818cf8)' },
-  utilities: { label: 'Home Utilities', icon: '⚡', color: '#a78bfa', gradient: 'linear-gradient(135deg, #7c3aed, #a78bfa)' },
-  fuel: { label: 'Fuel & Transport', icon: '⛽', color: '#f59e0b', gradient: 'linear-gradient(135deg, #b45309, #f59e0b)' },
-  dining: { label: 'Café & Dining', icon: '☕', color: '#ec4899', gradient: 'linear-gradient(135deg, #be185d, #ec4899)' },
-  fitness: { label: 'Gym & Fitness', icon: '🏋️', color: '#a3e635', gradient: 'linear-gradient(135deg, #65a30d, #a3e635)' },
-  education: { label: 'Education & Fees', icon: '🎓', color: '#22d3ee', gradient: 'linear-gradient(135deg, #0891b2, #22d3ee)' },
-  shopping: { label: 'Shopping & Personal', icon: '🛍️', color: '#2dd4bf', gradient: 'linear-gradient(135deg, #0f766e, #2dd4bf)' },
-  entertainment: { label: 'Entertainment', icon: '🎮', color: '#f472b6', gradient: 'linear-gradient(135deg, #db2777, #f472b6)' },
-  other: { label: 'General / Other', icon: '📦', color: '#9ca3af', gradient: 'linear-gradient(135deg, #4b5563, #9ca3af)' }
+  vegetables: { label: 'Vegetables', icon: '\u{1F966}', color: '#10b981', gradient: 'linear-gradient(135deg, #059669, #10b981)' },
+  fruits: { label: 'Fruits', icon: '\u{1F34E}', color: '#f43f5e', gradient: 'linear-gradient(135deg, #e11d48, #f43f5e)' },
+  dairy: { label: 'Dairy & Eggs', icon: '\u{1F95B}', color: '#60a5fa', gradient: 'linear-gradient(135deg, #2563eb, #60a5fa)' },
+  meat: { label: 'Meat & Seafood', icon: '\u{1F969}', color: '#fb7185', gradient: 'linear-gradient(135deg, #f43f5e, #fb7185)' },
+  bakery: { label: 'Bakery & Pantry', icon: '\u{1F35E}', color: '#fbbf24', gradient: 'linear-gradient(135deg, #d97706, #fbbf24)' },
+  rent: { label: 'Rent & Housing', icon: '\u{1F3E0}', color: '#818cf8', gradient: 'linear-gradient(135deg, #4f46e5, #818cf8)' },
+  utilities: { label: 'Home Utilities', icon: '\u26A1', color: '#a78bfa', gradient: 'linear-gradient(135deg, #7c3aed, #a78bfa)' },
+  fuel: { label: 'Fuel & Transport', icon: '\u26FD', color: '#f59e0b', gradient: 'linear-gradient(135deg, #b45309, #f59e0b)' },
+  dining: { label: 'Cafe & Dining', icon: '\u2615', color: '#ec4899', gradient: 'linear-gradient(135deg, #be185d, #ec4899)' },
+  fitness: { label: 'Gym & Fitness', icon: '\u{1F3CB}\uFE0F', color: '#a3e635', gradient: 'linear-gradient(135deg, #65a30d, #a3e635)' },
+  education: { label: 'Education & Fees', icon: '\u{1F393}', color: '#22d3ee', gradient: 'linear-gradient(135deg, #0891b2, #22d3ee)' },
+  shopping: { label: 'Shopping & Personal', icon: '\u{1F6CD}\uFE0F', color: '#2dd4bf', gradient: 'linear-gradient(135deg, #0f766e, #2dd4bf)' },
+  entertainment: { label: 'Entertainment', icon: '\u{1F3AE}', color: '#f472b6', gradient: 'linear-gradient(135deg, #db2777, #f472b6)' },
+  other: { label: 'General / Other', icon: '\u{1F4E6}', color: '#9ca3af', gradient: 'linear-gradient(135deg, #4b5563, #9ca3af)' }
 };
 
 // 2. Local Keyword Dictionary for Offline Parsing
