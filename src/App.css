@@ -842,6 +842,9 @@ input, select, textarea {
   width: min(320px, calc(100vw - 32px));
   max-height: min(360px, calc(100vh - 180px));
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   background: #0d1424;
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 18px;

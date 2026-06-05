@@ -482,7 +482,7 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
                     {CATEGORIES[item.category]?.icon || '📦'}
                   </div>
                   {openPicker === idx && (
-                    <div className="cat-picker-popup" onClick={e => e.stopPropagation()}>
+                    <div className="cat-picker-popup" onClick={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
                       {Object.entries(CATEGORIES).map(([key, val]) => (
                         <div
                           key={key}
