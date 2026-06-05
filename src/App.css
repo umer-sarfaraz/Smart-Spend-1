@@ -845,6 +845,8 @@ input, select, textarea {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99,102,241,0.75) rgba(255,255,255,0.08);
   background: #0d1424;
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 18px;
@@ -855,6 +857,9 @@ input, select, textarea {
   z-index: 300;
   box-shadow: 0 12px 40px rgba(0,0,0,0.65);
 }
+.cat-picker-popup::-webkit-scrollbar { width: 6px; }
+.cat-picker-popup::-webkit-scrollbar-track { background: rgba(255,255,255,0.06); border-radius: 999px; }
+.cat-picker-popup::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.75); border-radius: 999px; }
 .cat-picker-opt { min-width: 0; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 4px; border-radius: 11px; cursor: pointer; transition: background 0.15s; overflow: hidden; }
 .cat-picker-opt span:last-child { width: 100%; overflow-wrap: anywhere; }
 .cat-picker-opt:hover { background: rgba(255,255,255,0.07); }
