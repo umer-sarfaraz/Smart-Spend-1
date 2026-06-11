@@ -1145,3 +1145,325 @@ input, select, textarea {
 /* ── Browse catalog btn ── */
 .browse-catalog-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 11px 16px; background: rgba(99,102,241,0.07); border: 1.5px dashed rgba(99,102,241,0.35); border-radius: 16px; color: #6366f1; font-family: var(--font-body); font-size: 0.84rem; font-weight: 700; cursor: pointer; margin-bottom: 14px; transition: background 0.15s; }
 .browse-catalog-btn:hover { background: rgba(99,102,241,0.12); }
+
+/* ────────────────────────────────────────────────────────────
+   Local Profiles — sign-in gate, picker & personalization
+   ──────────────────────────────────────────────────────────── */
+
+.profile-gate {
+  width: 100%;
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: radial-gradient(circle at top left, #1e1b4b 0%, #080b11 50%, #020617 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.profile-gate-inner {
+  width: 100%;
+  max-width: 360px;
+  padding: calc(var(--safe-top) + 24px) 24px calc(var(--safe-bottom) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: gateFadeIn 0.4s ease;
+}
+
+@keyframes gateFadeIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.gate-logo {
+  font-family: var(--font-title);
+  font-size: 1.35rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #818cf8, #34d399);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 14px;
+}
+
+.gate-title {
+  font-family: var(--font-title);
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.gate-subtitle {
+  font-size: 0.8rem;
+  color: var(--slate-text);
+  line-height: 1.55;
+}
+
+.gate-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.gate-profile-card-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.gate-profile-card {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-glow);
+  border-radius: 20px;
+  padding: 18px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.gate-profile-card:active {
+  transform: scale(0.96);
+}
+
+.gate-profile-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--p-color, var(--primary));
+}
+
+.gate-profile-avatar {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--border-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.9rem;
+}
+
+.gate-edit-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.add-avatar {
+  color: var(--slate-text);
+  border-style: dashed;
+}
+
+.gate-profile-name {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--white-text);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gate-delete-link,
+.gate-delete-confirm {
+  background: none;
+  border: none;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--slate-text);
+  cursor: pointer;
+  padding: 2px 8px;
+}
+
+.gate-delete-confirm {
+  color: var(--rose);
+}
+
+.gate-manage-btn {
+  background: none;
+  border: 1px solid var(--border-glow);
+  border-radius: 14px;
+  color: var(--slate-text);
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.gate-manage-btn:hover {
+  color: var(--white-text);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.gate-privacy-note {
+  text-align: center;
+  font-size: 0.68rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+/* Create / edit profile form */
+.gate-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  color: var(--slate-text);
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  align-self: flex-start;
+  padding: 4px 0;
+}
+
+.gate-avatar-preview {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 3px solid var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.3rem;
+  margin-bottom: 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gate-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gate-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--slate-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gate-input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-glow);
+  border-radius: 14px;
+  padding: 14px 16px;
+  color: var(--white-text);
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.gate-input:focus {
+  border-color: var(--border-glow-focus);
+}
+
+.gate-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+}
+
+.gate-avatar-cell {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(255, 255, 255, 0.06);
+  font-size: 1.15rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.gate-avatar-cell:active {
+  transform: scale(0.9);
+}
+
+.gate-color-row {
+  display: flex;
+  gap: 12px;
+}
+
+.gate-color-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease;
+}
+
+.gate-color-dot.selected {
+  border-color: #fff;
+}
+
+.gate-color-dot:active {
+  transform: scale(0.9);
+}
+
+.gate-cta {
+  padding: 15px;
+  font-size: 0.95rem;
+  border-radius: 16px;
+  margin-top: 4px;
+}
+
+/* Header avatar chip + settings profile avatar */
+.header-profile-chip {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--primary);
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease;
+}
+
+.header-profile-chip:active {
+  transform: scale(0.92);
+}
+
+.settings-profile-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--primary);
+  font-size: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}

@@ -1,14 +1,29 @@
 import React, { useState, useRef } from 'react';
-import { Save, Download, Trash2, Info, Upload, BookOpen, Plus, X, AlertTriangle, Check } from 'lucide-react';
+import { Save, Download, Trash2, Info, Upload, BookOpen, Plus, X, AlertTriangle, Check, LogOut, Pencil } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CATEGORIES } from '../utils/parser';
+import { AVATARS, ACCENT_COLORS } from '../utils/profiles';
 
 export default function Settings({
   budget, onSaveBudget, onResetData, expenses, onSaveAllExpenses,
   customSuggestions = [], onSaveCustomSuggestions, customStores = [], showToast,
-  stores = [], onUpdateStores
+  stores = [], onUpdateStores,
+  profile, onSignOut, onUpdateProfile
 }) {
   const [budgetVal, setBudgetVal] = useState(budget);
+
+  // Profile editing state
+  const [profileEditOpen, setProfileEditOpen] = useState(false);
+  const [profName, setProfName] = useState(profile?.name || '');
+  const [profAvatar, setProfAvatar] = useState(profile?.avatar || '😀');
+  const [profColor, setProfColor] = useState(profile?.color || '#6366f1');
+
+  const handleSaveProfile = () => {
+    if (!profName.trim()) return;
+    onUpdateProfile({ name: profName.trim(), avatar: profAvatar, color: profColor });
+    setProfileEditOpen(false);
+    if (showToast) showToast('Profile updated ✓');
+  };
 
   // In-app confirm modal state
   const [confirmState, setConfirmState] = useState(null); // { message, onConfirm }
@@ -172,6 +187,94 @@ export default function Settings({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 0. Profile Card */}
+      {profile && (
+        <div className="glass-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div
+              className="settings-profile-avatar"
+              style={{ borderColor: profile.color, boxShadow: `0 0 16px ${profile.color}44` }}
+            >
+              {profile.avatar}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontWeight: 800, fontSize: '1.05rem', fontFamily: 'var(--font-title)' }}>{profile.name}</p>
+              <p style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>Local profile · data stays on this phone</p>
+            </div>
+            <button
+              className="outline-btn"
+              style={{ width: 'auto', padding: '9px 12px', borderRadius: '12px', fontSize: '0.75rem' }}
+              onClick={() => { setProfName(profile.name); setProfAvatar(profile.avatar); setProfColor(profile.color); setProfileEditOpen(!profileEditOpen); }}
+            >
+              <Pencil size={14} /> Edit
+            </button>
+          </div>
+
+          {profileEditOpen && (
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="input-group" style={{ marginBottom: 0 }}>
+                <label>Display Name</label>
+                <input
+                  type="text"
+                  className="input-element"
+                  value={profName}
+                  maxLength={20}
+                  onChange={(e) => setProfName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, display: 'block', marginBottom: '8px' }}>Avatar</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {AVATARS.map(a => (
+                    <button
+                      key={a}
+                      onClick={() => setProfAvatar(a)}
+                      style={{
+                        width: '40px', height: '40px', borderRadius: '12px', fontSize: '1.2rem',
+                        background: 'rgba(255,255,255,0.04)', cursor: 'pointer',
+                        border: profAvatar === a ? `2px solid ${profColor}` : '2px solid rgba(255,255,255,0.08)'
+                      }}
+                    >
+                      {a}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, display: 'block', marginBottom: '8px' }}>Accent Color</label>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  {ACCENT_COLORS.map(c => (
+                    <button
+                      key={c.value}
+                      onClick={() => setProfColor(c.value)}
+                      title={c.name}
+                      style={{
+                        width: '32px', height: '32px', borderRadius: '50%', background: c.value, cursor: 'pointer',
+                        border: profColor === c.value ? '3px solid #fff' : '3px solid transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}
+                    >
+                      {profColor === c.value && <Check size={14} color="#fff" strokeWidth={3} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button className="solid-btn" style={{ padding: '12px', borderRadius: '12px', fontSize: '0.85rem' }} onClick={handleSaveProfile}>
+                <Save size={16} /> Save Profile
+              </button>
+            </div>
+          )}
+
+          <button
+            className="outline-btn"
+            style={{ width: '100%', marginTop: '14px', padding: '12px', borderRadius: '12px', fontSize: '0.82rem' }}
+            onClick={onSignOut}
+          >
+            <LogOut size={16} /> Switch Profile / Sign Out
+          </button>
         </div>
       )}
 

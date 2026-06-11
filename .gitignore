@@ -8,3 +8,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .DS_Store
+
+# Local tooling & personal test images
+.claude/
+receiptsample.jpeg

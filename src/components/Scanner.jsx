@@ -11,7 +11,7 @@ const STORE_TYPES = [
   { id: 'walmart',          label: 'Walmart',           icon: '\u{1F6D2}' },
   { id: 'lotte',            label: 'Lotte Plaza',       icon: '\u{1F3EE}' },
   { id: 'halal',            label: 'Halal Store',       icon: '\u{1F969}' },
-  { id: 'gas',              label: 'Gas Station',       icon: '\u26FD' },
+  { id: 'gas',              label: 'Gas Station',       icon: '⛽' },
 ];
 
 export default function Scanner({ onSave, onOpenManual, stores = [], showToast }) {
@@ -62,10 +62,21 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
     try {
       setCameraError(false);
       let stream;
+      // Request a HIGH-RESOLUTION stream — without constraints most phones
+      // default to 640×480, which makes receipt text unreadable for the AI.
+      const hiRes = {
+        facingMode: 'environment',
+        width: { ideal: 2560 },
+        height: { ideal: 1440 },
+      };
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        stream = await navigator.mediaDevices.getUserMedia({ video: hiRes, audio: false });
       } catch {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
       }
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -88,20 +99,43 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
     }
   };
 
-  // Keep image under ~1MB so it fits well within Vercel's 4.5MB body limit
+  // Adaptive compression: preserve as much text detail as possible while
+  // staying under Vercel's 4.5MB body limit (~3M base64 chars budget).
+  // Receipts are tall & narrow — over-shrinking destroys the small print,
+  // so we start large and only step down if the payload is too big.
   const compressImage = (dataUrl) => new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 1600;
-      let { width, height } = img;
-      if (width > MAX || height > MAX) {
-        if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
-        else { width = Math.round(width * MAX / height); height = MAX; }
+      const ATTEMPTS = [
+        { max: 2200, q: 0.9 },
+        { max: 1800, q: 0.85 },
+        { max: 1500, q: 0.78 },
+      ];
+      const BUDGET = 2_900_000; // base64 chars (~2.2MB binary)
+      for (const { max, q } of ATTEMPTS) {
+        let { width, height } = img;
+        if (width > max || height > max) {
+          if (width > height) { height = Math.round(height * max / width); width = max; }
+          else { width = Math.round(width * max / height); height = max; }
+        }
+        const c = document.createElement('canvas');
+        c.width = width; c.height = height;
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, width, height);
+        const b64 = c.toDataURL('image/jpeg', q).split(',')[1];
+        if (b64.length <= BUDGET) { resolve(b64); return; }
       }
+      // Last resort: smallest attempt regardless of size
       const c = document.createElement('canvas');
+      const max = 1200;
+      let { width, height } = img;
+      if (width > height) { height = Math.round(height * max / width); width = max; }
+      else { width = Math.round(width * max / height); height = max; }
       c.width = width; c.height = height;
       c.getContext('2d').drawImage(img, 0, 0, width, height);
-      resolve(c.toDataURL('image/jpeg', 0.82).split(',')[1]);
+      resolve(c.toDataURL('image/jpeg', 0.7).split(',')[1]);
     };
     img.src = dataUrl;
   });
@@ -165,7 +199,15 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
     const newCount = scanCount + 1;
     setScanCount(newCount);
     setParsedData(prev => {
-      if (prev && newCount > 1) return { ...prev, items: [...prev.items, ...newResult.items] };
+      if (prev && newCount > 1) {
+        return {
+          ...prev,
+          items: [...prev.items, ...newResult.items],
+          // Printed totals usually appear on the last scanned section — keep the latest seen
+          receiptSubtotal: newResult.receiptSubtotal ?? prev.receiptSubtotal,
+          receiptTotal: newResult.receiptTotal ?? prev.receiptTotal,
+        };
+      }
       return newResult;
     });
     setScanMode('review');
@@ -394,6 +436,15 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
   const renderReviewView = () => {
     if (!parsedData) return null;
     const total = parsedData.items.reduce((s, i) => s + (i.amount || 0), 0);
+
+    // Total verification: compare extracted items against the printed total.
+    // Subtotal preferred (items exclude tax); fall back to grand total.
+    const printedSubtotal = typeof parsedData.receiptSubtotal === 'number' ? parsedData.receiptSubtotal : null;
+    const printedTotal = typeof parsedData.receiptTotal === 'number' ? parsedData.receiptTotal : null;
+    const printed = printedSubtotal ?? printedTotal;
+    const printedLabel = printedSubtotal !== null ? 'subtotal' : 'total';
+    const totalDiff = printed !== null && printed > 0 ? total - printed : null;
+    const totalMatches = totalDiff !== null && Math.abs(totalDiff) <= 0.05;
     const selectedCatalogItem = catalogPickerIdx !== null ? parsedData.items[catalogPickerIdx] : null;
     const builtInCatalogItems = (ITEM_CATALOG[catalogCategory] || []).map(name => ({
       id: `builtin-${catalogCategory}-${name}`,
@@ -538,6 +589,25 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
             <Plus size={14} /> Add Item
           </button>
         </div>
+
+        {/* Total verification check against the printed receipt total */}
+        {totalDiff !== null && (
+          totalMatches ? (
+            <div style={{display:'flex',alignItems:'center',gap:'8px',padding:'9px 12px',background:'rgba(16,185,129,0.08)',border:'1px solid rgba(16,185,129,0.25)',borderRadius:'10px',fontSize:'0.74rem',fontWeight:700,color:'#34d399'}}>
+              <Check size={14} style={{flexShrink:0}} />
+              <span>Items match the receipt's printed {printedLabel} (${printed.toFixed(2)}) — extraction verified</span>
+            </div>
+          ) : (
+            <div style={{display:'flex',alignItems:'flex-start',gap:'8px',padding:'9px 12px',background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:'10px',fontSize:'0.74rem',color:'#fbbf24',lineHeight:1.45}}>
+              <span style={{flexShrink:0,fontWeight:700}}>⚠</span>
+              <span>
+                Items add to <strong>${total.toFixed(2)}</strong> but the receipt's printed {printedLabel} is <strong>${printed.toFixed(2)}</strong>
+                {' '}({totalDiff > 0 ? '+' : '−'}${Math.abs(totalDiff).toFixed(2)}).
+                {totalDiff < 0 ? ' An item may be missing or a price read too low — check below.' : ' A price may be read too high or duplicated — check below.'}
+              </span>
+            </div>
+          )
+        )}
 
         {/* Total */}
         <div className="review-total-card">

@@ -6,8 +6,13 @@ import Settings from './components/Settings';
 import Scanner from './components/Scanner';
 import ManualForm from './components/ManualForm';
 import ShoppingList from './components/ShoppingList';
+import ProfileGate from './components/ProfileGate';
 import { Home, ShoppingBag, Camera, History as HistoryIcon, Settings as SettingsIcon } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import {
+  getProfiles, getActiveProfile, setActiveProfileId,
+  loadP, saveP, removeP, updateProfile, getGreeting
+} from './utils/profiles';
 
 // Seeding standard high-fidelity mockup data for immediate beautiful layout on initial load!
 const DEFAULT_EXPENSES = [
@@ -46,66 +51,85 @@ const DEFAULT_EXPENSES = [
   }
 ];
 
+// ── Root: local-profiles "sign-in" gate around the main app ──
 export default function App() {
-  // 1. Core States loaded from secure Local Phone Storage
+  const [profiles, setProfiles] = useState(getProfiles);
+  const [activeProfile, setActiveProfile] = useState(getActiveProfile);
+
+  const handleSelectProfile = (profile) => {
+    setActiveProfileId(profile.id);
+    setActiveProfile(profile);
+  };
+
+  const handleSignOut = () => {
+    setActiveProfileId(null);
+    setActiveProfile(null);
+    setProfiles(getProfiles());
+  };
+
+  const handleProfileUpdated = (fields) => {
+    const updated = updateProfile(activeProfile.id, fields);
+    setActiveProfile(updated);
+    setProfiles(getProfiles());
+  };
+
+  if (!activeProfile) {
+    return (
+      <ProfileGate
+        profiles={profiles}
+        onSelect={handleSelectProfile}
+        onProfilesChanged={() => setProfiles(getProfiles())}
+      />
+    );
+  }
+
+  // key={id} remounts MainApp so all state reloads on profile switch
+  return (
+    <MainApp
+      key={activeProfile.id}
+      profile={activeProfile}
+      onSignOut={handleSignOut}
+      onUpdateProfile={handleProfileUpdated}
+    />
+  );
+}
+
+function MainApp({ profile, onSignOut, onUpdateProfile }) {
+  const pid = profile.id;
+
+  // 1. Core States loaded from this profile's namespaced Local Storage
   const [expenses, setExpenses] = useState(() => {
-    const cached = localStorage.getItem('smartspend_expenses');
-    try {
-      const parsed = cached ? JSON.parse(cached) : null;
-      return Array.isArray(parsed) ? parsed : DEFAULT_EXPENSES;
-    } catch {
-      return DEFAULT_EXPENSES;
-    }
+    const parsed = loadP(pid, 'expenses', null);
+    return Array.isArray(parsed) ? parsed : DEFAULT_EXPENSES;
   });
 
   const [budget, setBudget] = useState(() => {
-    const cached = localStorage.getItem('smartspend_budget');
-    if (!cached) return 500;
-    const parsed = parseFloat(cached);
+    const parsed = parseFloat(loadP(pid, 'budget', 500));
     return isNaN(parsed) ? 500 : parsed;
   });
 
   // Shopping list checklist state
   const [shoppingList, setShoppingList] = useState(() => {
-    const cached = localStorage.getItem('smartspend_shopping_list');
-    try {
-      const parsed = cached ? JSON.parse(cached) : null;
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    const parsed = loadP(pid, 'shopping_list', null);
+    return Array.isArray(parsed) ? parsed : [];
   });
 
   // Dynamic custom stores state
   const [customStores, setCustomStores] = useState(() => {
-    const cached = localStorage.getItem('smartspend_custom_stores');
-    try {
-      const parsed = cached ? JSON.parse(cached) : null;
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    const parsed = loadP(pid, 'custom_stores', null);
+    return Array.isArray(parsed) ? parsed : [];
   });
 
   // Self-Learning Custom Suggestions Catalog state
   const [customSuggestions, setCustomSuggestions] = useState(() => {
-    const cached = localStorage.getItem('smartspend_custom_suggestions');
-    try {
-      const parsed = cached ? JSON.parse(cached) : null;
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    const parsed = loadP(pid, 'custom_suggestions', null);
+    return Array.isArray(parsed) ? parsed : [];
   });
 
   // Named stores list (managed in Settings, passed to Scanner + ShoppingList)
   const [stores, setStores] = useState(() => {
-    try {
-      const p = JSON.parse(localStorage.getItem('smartspend_stores') || 'null');
-      return Array.isArray(p) ? p : ['Walmart', 'Costco', 'Lotte', 'Halal Store', 'Home Depot', 'Restaurant Depot'];
-    } catch {
-      return ['Walmart', 'Costco', 'Lotte', 'Halal Store', 'Home Depot', 'Restaurant Depot'];
-    }
+    const parsed = loadP(pid, 'stores', null);
+    return Array.isArray(parsed) ? parsed : ['Walmart', 'Costco', 'Lotte', 'Halal Store', 'Home Depot', 'Restaurant Depot'];
   });
 
   const [customCats, setCustomCats] = useState([]);
@@ -125,10 +149,10 @@ export default function App() {
     setTimeout(() => setToast(null), 2500);
   }, []);
 
-  // First-run welcome card
-  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('smartspend_welcomed'));
+  // First-run welcome card (per profile)
+  const [showWelcome, setShowWelcome] = useState(() => !loadP(pid, 'welcomed', false));
   const dismissWelcome = () => {
-    localStorage.setItem('smartspend_welcomed', '1');
+    saveP(pid, 'welcomed', true);
     setShowWelcome(false);
   };
 
@@ -197,30 +221,13 @@ export default function App() {
     }
   }, []);
 
-  // 3. Persist states in LocalStorage whenever changed
-  useEffect(() => {
-    localStorage.setItem('smartspend_expenses', JSON.stringify(expenses));
-  }, [expenses]);
-
-  useEffect(() => {
-    localStorage.setItem('smartspend_budget', budget.toString());
-  }, [budget]);
-
-  useEffect(() => {
-    localStorage.setItem('smartspend_shopping_list', JSON.stringify(shoppingList));
-  }, [shoppingList]);
-
-  useEffect(() => {
-    localStorage.setItem('smartspend_custom_stores', JSON.stringify(customStores));
-  }, [customStores]);
-
-  useEffect(() => {
-    localStorage.setItem('smartspend_custom_suggestions', JSON.stringify(customSuggestions));
-  }, [customSuggestions]);
-
-  useEffect(() => {
-    localStorage.setItem('smartspend_stores', JSON.stringify(stores));
-  }, [stores]);
+  // 3. Persist states in this profile's namespaced LocalStorage whenever changed
+  useEffect(() => { saveP(pid, 'expenses', expenses); }, [pid, expenses]);
+  useEffect(() => { saveP(pid, 'budget', budget); }, [pid, budget]);
+  useEffect(() => { saveP(pid, 'shopping_list', shoppingList); }, [pid, shoppingList]);
+  useEffect(() => { saveP(pid, 'custom_stores', customStores); }, [pid, customStores]);
+  useEffect(() => { saveP(pid, 'custom_suggestions', customSuggestions); }, [pid, customSuggestions]);
+  useEffect(() => { saveP(pid, 'stores', stores); }, [pid, stores]);
 
   // 4. Handlers
   const handleSaveExpense = (newExpense) => {
@@ -237,11 +244,11 @@ export default function App() {
     setShoppingList([]);
     setCustomStores([]);
     setCustomSuggestions([]);
-    localStorage.removeItem('smartspend_expenses');
-    localStorage.removeItem('smartspend_budget');
-    localStorage.removeItem('smartspend_shopping_list');
-    localStorage.removeItem('smartspend_custom_stores');
-    localStorage.removeItem('smartspend_custom_suggestions');
+    removeP(pid, 'expenses');
+    removeP(pid, 'budget');
+    removeP(pid, 'shopping_list');
+    removeP(pid, 'custom_stores');
+    removeP(pid, 'custom_suggestions');
   };
 
   // Checklist Actions
@@ -362,12 +369,16 @@ export default function App() {
       <header className="app-header">
         <div className="logo-section">
           <h1>SmartSpend</h1>
-          <p>Local-First Expense Tracker</p>
+          <p>{getGreeting(profile.name)} 👋</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
-          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>AI Active</span>
-        </div>
+        <button
+          className="header-profile-chip"
+          style={{ borderColor: profile.color, boxShadow: `0 0 12px ${profile.color}44` }}
+          onClick={() => setActiveTab('settings')}
+          title={`${profile.name} — tap for profile settings`}
+        >
+          {profile.avatar}
+        </button>
       </header>
 
       {/* Main View Port content based on Navigation */}
@@ -440,6 +451,9 @@ export default function App() {
             showToast={showToast}
             stores={stores}
             onUpdateStores={setStores}
+            profile={profile}
+            onSignOut={onSignOut}
+            onUpdateProfile={onUpdateProfile}
           />
         )}
       </main>
@@ -463,10 +477,10 @@ export default function App() {
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '2.8rem', marginBottom: '8px' }}>👋</div>
               <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', fontWeight: 800, marginBottom: '8px' }}>
-                Welcome to SmartSpend!
+                Welcome, {profile.name}!
               </h3>
               <p style={{ fontSize: '0.78rem', color: '#94a3b8', lineHeight: '1.55' }}>
-                Your private, local-first household budget tracker. Everything stays on your phone — no account or sign-up needed.
+                Your private, local-first budget space is ready. Everything stays on your phone — here's a quick tour:
               </p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '4px 0' }}>

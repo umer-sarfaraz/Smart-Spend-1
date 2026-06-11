@@ -9,12 +9,12 @@ export const CATEGORIES = {
   meat: { label: 'Meat & Seafood', icon: '\u{1F969}', color: '#fb7185', gradient: 'linear-gradient(135deg, #f43f5e, #fb7185)' },
   bakery: { label: 'Bakery & Pantry', icon: '\u{1F35E}', color: '#fbbf24', gradient: 'linear-gradient(135deg, #d97706, #fbbf24)' },
   rent: { label: 'Rent & Housing', icon: '\u{1F3E0}', color: '#818cf8', gradient: 'linear-gradient(135deg, #4f46e5, #818cf8)' },
-  utilities: { label: 'Home Utilities', icon: '\u26A1', color: '#a78bfa', gradient: 'linear-gradient(135deg, #7c3aed, #a78bfa)' },
-  fuel: { label: 'Fuel & Transport', icon: '\u26FD', color: '#f59e0b', gradient: 'linear-gradient(135deg, #b45309, #f59e0b)' },
-  dining: { label: 'Cafe & Dining', icon: '\u2615', color: '#ec4899', gradient: 'linear-gradient(135deg, #be185d, #ec4899)' },
-  fitness: { label: 'Gym & Fitness', icon: '\u{1F3CB}\uFE0F', color: '#a3e635', gradient: 'linear-gradient(135deg, #65a30d, #a3e635)' },
+  utilities: { label: 'Home Utilities', icon: '⚡', color: '#a78bfa', gradient: 'linear-gradient(135deg, #7c3aed, #a78bfa)' },
+  fuel: { label: 'Fuel & Transport', icon: '⛽', color: '#f59e0b', gradient: 'linear-gradient(135deg, #b45309, #f59e0b)' },
+  dining: { label: 'Cafe & Dining', icon: '☕', color: '#ec4899', gradient: 'linear-gradient(135deg, #be185d, #ec4899)' },
+  fitness: { label: 'Gym & Fitness', icon: '\u{1F3CB}️', color: '#a3e635', gradient: 'linear-gradient(135deg, #65a30d, #a3e635)' },
   education: { label: 'Education & Fees', icon: '\u{1F393}', color: '#22d3ee', gradient: 'linear-gradient(135deg, #0891b2, #22d3ee)' },
-  shopping: { label: 'Shopping & Personal', icon: '\u{1F6CD}\uFE0F', color: '#2dd4bf', gradient: 'linear-gradient(135deg, #0f766e, #2dd4bf)' },
+  shopping: { label: 'Shopping & Personal', icon: '\u{1F6CD}️', color: '#2dd4bf', gradient: 'linear-gradient(135deg, #0f766e, #2dd4bf)' },
   entertainment: { label: 'Entertainment', icon: '\u{1F3AE}', color: '#f472b6', gradient: 'linear-gradient(135deg, #db2777, #f472b6)' },
   other: { label: 'General / Other', icon: '\u{1F4E6}', color: '#9ca3af', gradient: 'linear-gradient(135deg, #4b5563, #9ca3af)' }
 };
@@ -379,8 +379,17 @@ Return ONLY valid JSON no markdown: {"merchant":"Store","date":"${today}","isGas
 
   const basePrompt = prompts[storeHint] || prompts.general;
 
-  // Append universal category and format rules
+  // Append universal accuracy, category and format rules
   const prompt = `${basePrompt}
+
+ACCURACY RULES — follow strictly:
+1. Read each price digit by digit from the image. Prices always have exactly 2 decimals. Do not round, estimate, or guess a price you cannot clearly read.
+2. NEVER invent items. Only output items whose text is actually visible in the photo.
+3. If an item's name is partially unreadable, transcribe the readable part and keep going — do not skip the item if its price is clear.
+4. If an item's PRICE is unreadable, set "amount": 0 so the user can fill it in.
+5. Negative amounts (refunds, coupons, discounts applied to an item) should be included as negative numbers.
+6. Quantity lines like "2 @ $3.99" followed by "$7.98": output ONE item with the total $7.98 and put the quantity in the name.
+7. Find the printed SUBTOTAL (before tax) and TOTAL on the receipt and report them in "receiptSubtotal" and "receiptTotal". If not visible use null. Your extracted items should sum approximately to the subtotal — re-check any line that looks off before answering.
 
 CATEGORIES for all items — pick exactly one:
 "vegetables","fruits","dairy","meat","bakery","rent","utilities","fuel","dining","fitness","education","shopping","entertainment","other"
@@ -390,6 +399,8 @@ REQUIRED OUTPUT FORMAT — return ONLY this JSON structure, nothing else:
   "merchant": "Store Name",
   "date": "YYYY-MM-DD",
   "isGasMeter": false,
+  "receiptSubtotal": 52.10,
+  "receiptTotal": 54.20,
   "items": [
     { "name": "Clean Item Name", "amount": 12.34, "category": "meat" }
   ]

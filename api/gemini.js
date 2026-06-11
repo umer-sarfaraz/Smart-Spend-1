@@ -32,7 +32,12 @@ export default async function handler(req, res) {
   for (const { id, api, jsonMode } of MODELS) {
     try {
       const url = `https://generativelanguage.googleapis.com/${api}/models/${id}:generateContent?key=${apiKey}`;
-      const generationConfig = jsonMode ? { responseMimeType: 'application/json' } : {};
+      // temperature 0 = deterministic extraction (no creative guessing on prices)
+      const generationConfig = {
+        temperature: 0,
+        maxOutputTokens: 8192,
+        ...(jsonMode ? { responseMimeType: 'application/json' } : {})
+      };
 
       const response = await fetch(url, {
         method: 'POST',
