@@ -8,9 +8,54 @@ export default function Settings({
   budget, onSaveBudget, onResetData, expenses, onSaveAllExpenses,
   customSuggestions = [], onSaveCustomSuggestions, customStores = [], showToast,
   stores = [], onUpdateStores,
-  profile, onSignOut, onUpdateProfile
+  profile, onSignOut, onUpdateProfile,
+  recurring = [], onUpdateRecurring,
+  catBudgets = {}, onUpdateCatBudgets,
+  nameMap = {}, onUpdateNameMap
 }) {
+  const [nmOpen, setNmOpen] = useState(false);
   const [budgetVal, setBudgetVal] = useState(budget);
+
+  // Recurring expenses section
+  const [recOpen, setRecOpen] = useState(false);
+  const [recName, setRecName] = useState('');
+  const [recAmount, setRecAmount] = useState('');
+  const [recCat, setRecCat] = useState('rent');
+  const [recDay, setRecDay] = useState('1');
+
+  const addRecurring = () => {
+    const amt = parseFloat(recAmount);
+    if (!recName.trim() || !amt || amt <= 0) {
+      if (showToast) showToast('Enter a name and amount', 'error');
+      return;
+    }
+    onUpdateRecurring([...recurring, {
+      id: `r_${Date.now()}`,
+      name: recName.trim(),
+      merchant: recName.trim(),
+      amount: amt,
+      category: recCat,
+      dayOfMonth: Math.min(28, Math.max(1, parseInt(recDay) || 1)),
+    }]);
+    setRecName(''); setRecAmount(''); setRecDay('1');
+    if (showToast) showToast('Recurring expense added — it will post automatically each month 🔁');
+  };
+
+  // Category budgets section
+  const [cbOpen, setCbOpen] = useState(false);
+  const [cbCat, setCbCat] = useState('bakery');
+  const [cbAmount, setCbAmount] = useState('');
+
+  const addCatBudget = () => {
+    const amt = parseFloat(cbAmount);
+    if (!amt || amt <= 0) {
+      if (showToast) showToast('Enter a limit amount', 'error');
+      return;
+    }
+    onUpdateCatBudgets({ ...catBudgets, [cbCat]: amt });
+    setCbAmount('');
+    if (showToast) showToast(`${CATEGORIES[cbCat]?.label || cbCat} budget set ✓`);
+  };
 
   // Profile editing state
   const [profileEditOpen, setProfileEditOpen] = useState(false);
@@ -296,6 +341,179 @@ export default function Settings({
             <Save size={18} />
           </button>
         </form>
+      </div>
+
+      {/* 1b. Recurring Expenses */}
+      <div className="glass-card" onClick={() => setRecOpen(!recOpen)} style={{ cursor: 'pointer' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: '0.95rem' }}>🔁 Recurring Expenses</p>
+            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>Rent, utilities, subscriptions — auto-logged every month</p>
+          </div>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>
+            {recurring.length} {recOpen ? '▲' : '→'}
+          </span>
+        </div>
+        {recOpen && (
+          <div style={{ marginTop: 14 }} onClick={e => e.stopPropagation()}>
+            {recurring.map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '1rem' }}>{CATEGORIES[r.category]?.icon || '📦'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</div>
+                  <div style={{ fontSize: '0.64rem', color: '#64748b' }}>Day {r.dayOfMonth} of each month · {CATEGORIES[r.category]?.label}</div>
+                </div>
+                <span style={{ fontWeight: 800, fontSize: '0.85rem' }}>${r.amount.toFixed(2)}</span>
+                <button
+                  onClick={() => onUpdateRecurring(recurring.filter(x => x.id !== r.id))}
+                  style={{ background: 'none', border: 'none', color: '#f43f5e', cursor: 'pointer', padding: 4, display: 'flex' }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              <input
+                className="input-element"
+                placeholder="Name (e.g. Rent, Internet, Netflix)…"
+                value={recName}
+                onChange={e => setRecName(e.target.value)}
+                style={{ padding: '10px 12px', fontSize: '0.84rem' }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="input-element"
+                  type="number"
+                  placeholder="Amount $"
+                  value={recAmount}
+                  onChange={e => setRecAmount(e.target.value)}
+                  style={{ flex: 1.2, padding: '10px 12px', fontSize: '0.84rem' }}
+                />
+                <select
+                  className="input-element"
+                  value={recCat}
+                  onChange={e => setRecCat(e.target.value)}
+                  style={{ flex: 1.6, padding: '10px 8px', fontSize: '0.78rem' }}
+                >
+                  {Object.entries(CATEGORIES).map(([k, v]) => (
+                    <option key={k} value={k}>{v.icon} {v.label}</option>
+                  ))}
+                </select>
+                <input
+                  className="input-element"
+                  type="number"
+                  min="1" max="28"
+                  placeholder="Day"
+                  title="Day of month it posts"
+                  value={recDay}
+                  onChange={e => setRecDay(e.target.value)}
+                  style={{ flex: 0.7, padding: '10px 8px', fontSize: '0.84rem' }}
+                />
+              </div>
+              <button className="solid-btn" style={{ padding: '11px', borderRadius: '12px', fontSize: '0.82rem' }} onClick={addRecurring}>
+                <Plus size={15} /> Add Recurring
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 1c. Category Budgets */}
+      <div className="glass-card" onClick={() => setCbOpen(!cbOpen)} style={{ cursor: 'pointer' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: '0.95rem' }}>🎯 Category Budgets</p>
+            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>Monthly limit per category — progress shows in Insights</p>
+          </div>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>
+            {Object.keys(catBudgets).length} {cbOpen ? '▲' : '→'}
+          </span>
+        </div>
+        {cbOpen && (
+          <div style={{ marginTop: 14 }} onClick={e => e.stopPropagation()}>
+            {Object.entries(catBudgets).map(([key, amt]) => (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '1rem' }}>{CATEGORIES[key]?.icon || '📦'}</span>
+                <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 700 }}>{CATEGORIES[key]?.label || key}</span>
+                <span style={{ fontWeight: 800, fontSize: '0.85rem' }}>${amt.toFixed(2)}/mo</span>
+                <button
+                  onClick={() => {
+                    const next = { ...catBudgets };
+                    delete next[key];
+                    onUpdateCatBudgets(next);
+                  }}
+                  style={{ background: 'none', border: 'none', color: '#f43f5e', cursor: 'pointer', padding: 4, display: 'flex' }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <select
+                className="input-element"
+                value={cbCat}
+                onChange={e => setCbCat(e.target.value)}
+                style={{ flex: 1.6, padding: '10px 8px', fontSize: '0.78rem' }}
+              >
+                {Object.entries(CATEGORIES).map(([k, v]) => (
+                  <option key={k} value={k}>{v.icon} {v.label}</option>
+                ))}
+              </select>
+              <input
+                className="input-element"
+                type="number"
+                placeholder="Limit $/mo"
+                value={cbAmount}
+                onChange={e => setCbAmount(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addCatBudget(); }}
+                style={{ flex: 1, padding: '10px 12px', fontSize: '0.84rem' }}
+              />
+              <button className="solid-btn" style={{ width: 'auto', padding: '10px 14px', borderRadius: 12 }} onClick={addCatBudget}>
+                <Plus size={15} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 1d. Scan Name Memory */}
+      <div className="glass-card" onClick={() => setNmOpen(!nmOpen)} style={{ cursor: 'pointer' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: '0.95rem' }}>🧠 Scan Name Memory</p>
+            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>Names you've corrected after scans — auto-applied to future receipts</p>
+          </div>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>
+            {Object.keys(nameMap).length} {nmOpen ? '▲' : '→'}
+          </span>
+        </div>
+        {nmOpen && (
+          <div style={{ marginTop: 14 }} onClick={e => e.stopPropagation()}>
+            {Object.keys(nameMap).length === 0 ? (
+              <p style={{ fontSize: '0.74rem', color: '#64748b', fontStyle: 'italic' }}>
+                Nothing learned yet. After a scan, rename an item in the review screen and save — the correction will be remembered and applied automatically next time.
+              </p>
+            ) : Object.entries(nameMap).map(([raw, m]) => (
+              <div key={raw} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '0.95rem', flexShrink: 0 }}>{CATEGORIES[m.category]?.icon || '📦'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.68rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{raw}</div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>→ {m.name}</div>
+                </div>
+                <button
+                  onClick={() => {
+                    const next = { ...nameMap };
+                    delete next[raw];
+                    onUpdateNameMap(next);
+                  }}
+                  style={{ background: 'none', border: 'none', color: '#f43f5e', cursor: 'pointer', padding: 4, display: 'flex', flexShrink: 0 }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 2. Stores Management */}

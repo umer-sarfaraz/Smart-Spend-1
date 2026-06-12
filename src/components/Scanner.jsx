@@ -14,7 +14,7 @@ const STORE_TYPES = [
   { id: 'gas',              label: 'Gas Station',       icon: '⛽' },
 ];
 
-export default function Scanner({ onSave, onOpenManual, stores = [], showToast }) {
+export default function Scanner({ onSave, onOpenManual, stores = [], showToast, nameMap = {}, onLearnNames }) {
   const [streamActive, setStreamActive] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -186,6 +186,26 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
       setStatusMessage(`Scan failed: ${friendly}`);
     }
 
+    // ── RENAME MEMORY: auto-apply the user's learned name corrections ─────────
+    if (newResult?.items?.length) {
+      let fixed = 0;
+      newResult = {
+        ...newResult,
+        items: newResult.items.map(it => {
+          const raw = (it.name || '').trim();
+          const learned = nameMap[raw.toLowerCase()];
+          if (learned?.name) {
+            fixed++;
+            return { ...it, rawName: raw, name: learned.name, category: learned.category || it.category };
+          }
+          return { ...it, rawName: raw };
+        }),
+      };
+      if (fixed > 0 && showToast) {
+        showToast(`${fixed} item name${fixed > 1 ? 's' : ''} auto-corrected from memory 🧠`, 'info');
+      }
+    }
+
     // ── TIER 2: Blank form (clean slate for manual entry) ─────────────────────
     if (!newResult) {
       newResult = {
@@ -200,9 +220,18 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
     setScanCount(newCount);
     setParsedData(prev => {
       if (prev && newCount > 1) {
+        // De-duplicate overlap between photo sections: an item with the same
+        // name + price as one already captured is almost certainly the same
+        // physical receipt line photographed twice.
+        const seen = new Set(prev.items.map(i => `${(i.name || '').toLowerCase().trim()}|${i.amount}`));
+        const fresh = newResult.items.filter(i => !seen.has(`${(i.name || '').toLowerCase().trim()}|${i.amount}`));
+        const skipped = newResult.items.length - fresh.length;
+        if (skipped > 0 && showToast) {
+          showToast(`${skipped} overlapping item${skipped > 1 ? 's' : ''} skipped (already captured)`, 'info');
+        }
         return {
           ...prev,
-          items: [...prev.items, ...newResult.items],
+          items: [...prev.items, ...fresh],
           // Printed totals usually appear on the last scanned section — keep the latest seen
           receiptSubtotal: newResult.receiptSubtotal ?? prev.receiptSubtotal,
           receiptTotal: newResult.receiptTotal ?? prev.receiptTotal,
@@ -318,13 +347,27 @@ export default function Scanner({ onSave, onOpenManual, stores = [], showToast }
       if (showToast) showToast('Add at least one item with a name and amount', 'error');
       return;
     }
+    // RENAME MEMORY: learn corrections the user made during review.
+    // If a scanned raw name was changed, remember raw → preferred forever.
+    if (onLearnNames) {
+      const learned = {};
+      validItems.forEach(i => {
+        const raw = (i.rawName || '').trim();
+        const finalName = i.name.trim();
+        if (raw && finalName && raw.toLowerCase() !== finalName.toLowerCase()) {
+          learned[raw.toLowerCase()] = { name: finalName, category: i.category || 'other' };
+        }
+      });
+      if (Object.keys(learned).length) onLearnNames(learned);
+    }
+
     onSave({
       id: Date.now().toString(),
       merchant: parsedData.merchant?.trim() || 'Scanned Bill',
       date: parsedData.date,
       isGasMeter: parsedData.isGasMeter,
       amount: validItems.reduce((s, i) => s + i.amount, 0),
-      items: validItems
+      items: validItems.map(({ rawName, ...rest }) => rest)
     });
     try {
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.8 }, colors: ['#6366f1', '#10b981', '#fbbf24', '#f43f5e'] });

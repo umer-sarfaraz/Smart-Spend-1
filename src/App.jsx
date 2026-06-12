@@ -135,6 +135,32 @@ function MainApp({ profile, onSignOut, onUpdateProfile }) {
 
   const [customCats, setCustomCats] = useState([]);
 
+  // Recurring expenses (rent, utilities, subscriptions — auto-posted monthly)
+  const [recurring, setRecurring] = useState(() => {
+    const parsed = loadP(pid, 'recurring', null);
+    return Array.isArray(parsed) ? parsed : [];
+  });
+
+  // Per-category monthly budget limits, e.g. { meat: 200, dining: 80 }
+  const [catBudgets, setCatBudgets] = useState(() => {
+    const parsed = loadP(pid, 'cat_budgets', null);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  });
+
+  // Scan rename memory: raw scanned name (lowercase) → { name, category }
+  // Learned when the user corrects an item name in scan review; auto-applied
+  // to every future scan so the ledger always uses their preferred names.
+  const [nameMap, setNameMap] = useState(() => {
+    const parsed = loadP(pid, 'name_map', null);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  });
+
+  const handleLearnNames = (mappings) => {
+    if (mappings && Object.keys(mappings).length) {
+      setNameMap(prev => ({ ...prev, ...mappings }));
+    }
+  };
+
   // Dashboard filter state (lifted so it persists across tab switches)
   const [dashFilter, setDashFilter] = useState('monthly');
   const [dashFrom, setDashFrom] = useState('');
@@ -229,6 +255,35 @@ function MainApp({ profile, onSignOut, onUpdateProfile }) {
   useEffect(() => { saveP(pid, 'custom_stores', customStores); }, [pid, customStores]);
   useEffect(() => { saveP(pid, 'custom_suggestions', customSuggestions); }, [pid, customSuggestions]);
   useEffect(() => { saveP(pid, 'stores', stores); }, [pid, stores]);
+  useEffect(() => { saveP(pid, 'recurring', recurring); }, [pid, recurring]);
+  useEffect(() => { saveP(pid, 'cat_budgets', catBudgets); }, [pid, catBudgets]);
+  useEffect(() => { saveP(pid, 'name_map', nameMap); }, [pid, nameMap]);
+
+  // Auto-post due recurring expenses (once per month each, on app open)
+  useEffect(() => {
+    if (!recurring.length) return;
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const due = recurring.filter(r =>
+      now.getDate() >= (r.dayOfMonth || 1) &&
+      !expenses.some(e => e.recurringId === r.id && e.date.startsWith(monthKey))
+    );
+    if (!due.length) return;
+    const newOnes = due.map(r => {
+      const day = Math.min(r.dayOfMonth || 1, now.getDate());
+      return {
+        id: `rec_${r.id}_${monthKey}`,
+        recurringId: r.id,
+        merchant: r.merchant?.trim() || r.name,
+        date: `${monthKey}-${String(day).padStart(2, '0')}`,
+        isGasMeter: false,
+        amount: r.amount,
+        items: [{ name: r.name, amount: r.amount, category: r.category || 'other' }]
+      };
+    });
+    setExpenses(prev => [...newOnes, ...prev]);
+    showToast(`${due.length} recurring expense${due.length > 1 ? 's' : ''} added automatically 🔁`);
+  }, [recurring]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 4. Handlers
   const handleSaveExpense = (newExpense) => {
@@ -425,6 +480,8 @@ function MainApp({ profile, onSignOut, onUpdateProfile }) {
             onOpenManual={() => setIsManualOpen(true)}
             stores={stores}
             showToast={showToast}
+            nameMap={nameMap}
+            onLearnNames={handleLearnNames}
           />
         )}
 
@@ -440,7 +497,7 @@ function MainApp({ profile, onSignOut, onUpdateProfile }) {
         )}
 
         {activeTab === 'insights' && (
-          <Insights expenses={expenses} budget={budget} />
+          <Insights expenses={expenses} budget={budget} catBudgets={catBudgets} />
         )}
 
         {activeTab === 'settings' && (
@@ -459,6 +516,12 @@ function MainApp({ profile, onSignOut, onUpdateProfile }) {
             profile={profile}
             onSignOut={onSignOut}
             onUpdateProfile={onUpdateProfile}
+            recurring={recurring}
+            onUpdateRecurring={setRecurring}
+            catBudgets={catBudgets}
+            onUpdateCatBudgets={setCatBudgets}
+            nameMap={nameMap}
+            onUpdateNameMap={setNameMap}
           />
         )}
       </main>

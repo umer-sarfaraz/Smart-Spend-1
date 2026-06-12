@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { CATEGORIES } from '../utils/parser';
-import { TrendingUp, ShoppingCart, X, Trash2 } from 'lucide-react';
+import { TrendingUp, ShoppingCart, X, Trash2, Search } from 'lucide-react';
 
 const CAT_GRAD = {
   vegetables:'#10b981', fruits:'#f43f5e', dairy:'#94a3b8', meat:'#fb7185',
@@ -16,6 +16,7 @@ export default function Reports({ expenses, onDelete }) {
   const [bdMode,     setBdMode]     = useState('category');
   const [filterKey,  setFilterKey]  = useState(null);
   const [detailExp,  setDetailExp]  = useState(null);
+  const [search,     setSearch]     = useState('');
 
   // ── Pool filtered by period ──────────────────────────────────────────────────
   const pool = useMemo(() => {
@@ -75,10 +76,22 @@ export default function Reports({ expenses, onDelete }) {
 
   // ── Filtered transaction list ────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    if (!filterKey) return pool;
-    if (bdMode === 'category') return pool.filter(e => e.items.some(i=>(i.category||'other')===filterKey));
-    return pool.filter(e => e.merchant === filterKey);
-  }, [pool, filterKey, bdMode]);
+    let out = pool;
+    if (filterKey) {
+      out = bdMode === 'category'
+        ? out.filter(e => e.items.some(i => (i.category || 'other') === filterKey))
+        : out.filter(e => e.merchant === filterKey);
+    }
+    const q = search.trim().toLowerCase();
+    if (q) {
+      out = out.filter(e =>
+        e.merchant?.toLowerCase().includes(q) ||
+        e.items?.some(i => i.name?.toLowerCase().includes(q)) ||
+        e.amount?.toFixed(2).includes(q)
+      );
+    }
+    return out;
+  }, [pool, filterKey, bdMode, search]);
 
   const grouped = useMemo(() => {
     const g = {};
@@ -127,6 +140,23 @@ export default function Reports({ expenses, onDelete }) {
           <input type="date" className="date-range-input" value={customTo}   onChange={e=>setCustomTo(e.target.value)} />
         </div>
       )}
+
+      {/* Search box */}
+      <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 14px',marginBottom:10,background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14}}>
+        <Search size={15} style={{color:'#64748b',flexShrink:0}} />
+        <input
+          type="text"
+          placeholder="Search store, item or amount…"
+          value={search}
+          onChange={e=>setSearch(e.target.value)}
+          style={{flex:1,background:'none',border:'none',outline:'none',color:'#f8fafc',fontSize:'0.84rem',fontFamily:'var(--font-body)'}}
+        />
+        {search && (
+          <button onClick={()=>setSearch('')} style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',display:'flex',padding:2}}>
+            <X size={14}/>
+          </button>
+        )}
+      </div>
 
       {/* Period banner */}
       <div className="period-banner">

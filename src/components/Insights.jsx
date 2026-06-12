@@ -34,7 +34,7 @@ const ChartTip = ({ active, payload, label }) => {
   );
 };
 
-export default function Insights({ expenses = [], budget = 0 }) {
+export default function Insights({ expenses = [], budget = 0, catBudgets = {} }) {
   const [period, setPeriod] = useState('month');
 
   // ── Period pool ────────────────────────────────────────────
@@ -254,6 +254,44 @@ export default function Insights({ expenses = [], budget = 0 }) {
               ))}
             </div>
           )}
+
+          {/* Category budgets progress (always current month) */}
+          {Object.keys(catBudgets).length > 0 && (() => {
+            const now = new Date();
+            const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const monthCatT = {};
+            expenses.filter(e => e.date.startsWith(monthKey)).forEach(e =>
+              e.items.forEach(i => {
+                const c = i.category || 'other';
+                monthCatT[c] = (monthCatT[c] || 0) + i.amount;
+              })
+            );
+            return (
+              <div className="glass-card">
+                <h3 className="section-title">🎯 Category Budgets <span style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 700 }}>· this month</span></h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: 4 }}>
+                  {Object.entries(catBudgets).map(([key, limit]) => {
+                    const spent = monthCatT[key] || 0;
+                    const pct = Math.min(100, Math.round(spent / limit * 100));
+                    const color = pct < 70 ? '#10b981' : pct < 100 ? '#f59e0b' : '#f43f5e';
+                    return (
+                      <div key={key}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: 4 }}>
+                          <span style={{ color: '#cbd5e1', fontWeight: 600 }}>{CATEGORIES[key]?.icon} {CATEGORIES[key]?.label || key}</span>
+                          <span style={{ fontWeight: 700, color: spent > limit ? '#f43f5e' : '#94a3b8' }}>
+                            {fmtMoney(spent)} / {fmtMoney(limit)}{spent > limit ? ' ⚠' : ''}
+                          </span>
+                        </div>
+                        <div style={{ height: 7, borderRadius: 4, background: 'rgba(255,255,255,0.05)' }}>
+                          <div style={{ height: '100%', borderRadius: 4, width: `${Math.max(2, pct)}%`, background: color, boxShadow: `0 0 8px ${color}66`, transition: 'width 0.4s ease' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Category donut */}
           <div className="glass-card">
