@@ -7,7 +7,8 @@ import Scanner from './components/Scanner';
 import ManualForm from './components/ManualForm';
 import ShoppingList from './components/ShoppingList';
 import ProfileGate from './components/ProfileGate';
-import { Home, ShoppingBag, Camera, History as HistoryIcon, Settings as SettingsIcon } from 'lucide-react';
+import Insights from './components/Insights';
+import { Home, ShoppingBag, Camera, History as HistoryIcon, BarChart3 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
   getProfiles, getActiveProfile, setActiveProfileId,
@@ -438,6 +439,10 @@ function MainApp({ profile, onSignOut, onUpdateProfile }) {
           />
         )}
 
+        {activeTab === 'insights' && (
+          <Insights expenses={expenses} budget={budget} />
+        )}
+
         {activeTab === 'settings' && (
           <Settings
             budget={budget}
@@ -543,13 +548,12 @@ function MainApp({ profile, onSignOut, onUpdateProfile }) {
         </button>
 
         <button
-          onClick={() => setActiveTab('settings')}
-          className={`nav-item ${activeTab === 'settings'
-? 'active' : ''}`}
+          onClick={() => setActiveTab('insights')}
+          className={`nav-item ${activeTab === 'insights' ? 'active' : ''}`}
         >
-          <SettingsIcon size={22} />
-          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Settings</span>
-          {activeTab === 'settings' && <div className="nav-item-indicator" />}
+          <BarChart3 size={22} />
+          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Insights</span>
+          {activeTab === 'insights' && <div className="nav-item-indicator" />}
         </button>
       </nav>
     </div>
