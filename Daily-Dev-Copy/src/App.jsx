@@ -1,0 +1,640 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import './App.css';
+import Dashboard from './components/Dashboard';
+import Reports from './components/Reports';
+import Settings from './components/Settings';
+import Scanner from './components/Scanner';
+import ManualForm from './components/ManualForm';
+import ShoppingList from './components/ShoppingList';
+import ProfileGate from './components/ProfileGate';
+import Insights from './components/Insights';
+import { Home, ShoppingBag, Camera, History as HistoryIcon, BarChart3 } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import {
+  getProfiles, getActiveProfile, setActiveProfileId,
+  loadP, saveP, removeP, updateProfile, getGreeting
+} from './utils/profiles';
+import { currentMonthKey, postedRecurringIds } from './utils/recurring';
+
+// Seeding standard high-fidelity mockup data for immediate beautiful layout on initial load!
+const DEFAULT_EXPENSES = [
+  {
+    id: 'seed_1',
+    merchant: 'Lotte Plaza Market',
+    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    isGasMeter: false,
+    amount: 17.48,
+    items: [
+      { name: 'Organic Roma Tomatoes', amount: 3.49, category: 'vegetables' },
+      { name: 'Fresh Gala Apples', amount: 4.99, category: 'fruits' },
+      { name: 'Large White Eggs 12ct', amount: 2.99, category: 'dairy' },
+      { name: 'Head & Shoulders Shampoo', amount: 6.00, category: 'shopping' }
+    ]
+  },
+  {
+    id: 'seed_2',
+    merchant: 'Chevron Fuel Station',
+    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    isGasMeter: true,
+    amount: 45.00,
+    items: [
+      { name: 'Unleaded Fuel (12.8 Gal @ $3.51/gal)', amount: 45.00, category: 'fuel' }
+    ]
+  },
+  {
+    id: 'seed_3',
+    merchant: 'City Power & Water Co.',
+    date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    isGasMeter: false,
+    amount: 85.00,
+    items: [
+      { name: 'Monthly Home Electricity Charge', amount: 85.00, category: 'utilities' }
+    ]
+  }
+];
+
+// ── Root: local-profiles "sign-in" gate around the main app ──
+export default function App() {
+  const [profiles, setProfiles] = useState(getProfiles);
+  const [activeProfile, setActiveProfile] = useState(getActiveProfile);
+
+  const handleSelectProfile = (profile) => {
+    setActiveProfileId(profile.id);
+    setActiveProfile(profile);
+  };
+
+  const handleSignOut = () => {
+    setActiveProfileId(null);
+    setActiveProfile(null);
+    setProfiles(getProfiles());
+  };
+
+  const handleProfileUpdated = (fields) => {
+    const updated = updateProfile(activeProfile.id, fields);
+    setActiveProfile(updated);
+    setProfiles(getProfiles());
+  };
+
+  if (!activeProfile) {
+    return (
+      <ProfileGate
+        profiles={profiles}
+        onSelect={handleSelectProfile}
+        onProfilesChanged={() => setProfiles(getProfiles())}
+      />
+    );
+  }
+
+  // key={id} remounts MainApp so all state reloads on profile switch
+  return (
+    <MainApp
+      key={activeProfile.id}
+      profile={activeProfile}
+      onSignOut={handleSignOut}
+      onUpdateProfile={handleProfileUpdated}
+    />
+  );
+}
+
+function MainApp({ profile, onSignOut, onUpdateProfile }) {
+  const pid = profile.id;
+
+  // 1. Core States loaded from this profile's namespaced Local Storage
+  const [expenses, setExpenses] = useState(() => {
+    const parsed = loadP(pid, 'expenses', null);
+    return Array.isArray(parsed) ? parsed : DEFAULT_EXPENSES;
+  });
+
+  const [budget, setBudget] = useState(() => {
+    const parsed = parseFloat(loadP(pid, 'budget', 500));
+    return isNaN(parsed) ? 500 : parsed;
+  });
+
+  // Shopping list checklist state
+  const [shoppingList, setShoppingList] = useState(() => {
+    const parsed = loadP(pid, 'shopping_list', null);
+    return Array.isArray(parsed) ? parsed : [];
+  });
+
+  // Dynamic custom stores state
+  const [customStores, setCustomStores] = useState(() => {
+    const parsed = loadP(pid, 'custom_stores', null);
+    return Array.isArray(parsed) ? parsed : [];
+  });
+
+  // Self-Learning Custom Suggestions Catalog state
+  const [customSuggestions, setCustomSuggestions] = useState(() => {
+    const parsed = loadP(pid, 'custom_suggestions', null);
+    return Array.isArray(parsed) ? parsed : [];
+  });
+
+  // Named stores list (managed in Settings, passed to Scanner + ShoppingList)
+  const [stores, setStores] = useState(() => {
+    const parsed = loadP(pid, 'stores', null);
+    return Array.isArray(parsed) ? parsed : ['Walmart', 'Costco', 'Lotte', 'Halal Store', 'Home Depot', 'Restaurant Depot'];
+  });
+
+  const [customCats, setCustomCats] = useState([]);
+
+  // Recurring expenses (rent, utilities, subscriptions — auto-posted monthly)
+  const [recurring, setRecurring] = useState(() => {
+    const parsed = loadP(pid, 'recurring', null);
+    return Array.isArray(parsed) ? parsed : [];
+  });
+
+  // Per-category monthly budget limits, e.g. { meat: 200, dining: 80 }
+  const [catBudgets, setCatBudgets] = useState(() => {
+    const parsed = loadP(pid, 'cat_budgets', null);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  });
+
+  // Scan rename memory: raw scanned name (lowercase) → { name, category }
+  // Learned when the user corrects an item name in scan review; auto-applied
+  // to every future scan so the ledger always uses their preferred names.
+  const [nameMap, setNameMap] = useState(() => {
+    const parsed = loadP(pid, 'name_map', null);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  });
+
+  const handleLearnNames = (mappings) => {
+    if (mappings && Object.keys(mappings).length) {
+      setNameMap(prev => ({ ...prev, ...mappings }));
+    }
+  };
+
+  // Dashboard filter state (lifted so it persists across tab switches)
+  const [dashFilter, setDashFilter] = useState('monthly');
+  const [dashFrom, setDashFrom] = useState('');
+  const [dashTo, setDashTo] = useState('');
+
+  // Navigation tab states
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Deep-link: Home Breakdown "Set a limit" → Settings' Category Budgets
+  // with the tapped category pre-selected (consumed by Settings on arrival).
+  const [settingsFocusCat, setSettingsFocusCat] = useState(null);
+  const [settingsFocusRecurring, setSettingsFocusRecurring] = useState(false);
+
+  // Toast notification system
+  const [toast, setToast] = useState(null);
+  const showToast = useCallback((message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 2500);
+  }, []);
+
+  // First-run welcome card (per profile)
+  const [showWelcome, setShowWelcome] = useState(() => !loadP(pid, 'welcomed', false));
+  const dismissWelcome = () => {
+    saveP(pid, 'welcomed', true);
+    setShowWelcome(false);
+  };
+
+  // Scanner is now a full tab — ManualForm stays as bottom sheet
+  const [isManualOpen, setIsManualOpen] = useState(false);
+
+  // Lifted Ledger states (allows deep-linking category breakdowns!)
+  const [historyViewMode, setHistoryViewMode] = useState('receipts');
+  const [historyCategoryFilter, setHistoryCategoryFilter] = useState('all');
+
+  // 2. Automated Shared List URL Import Listener on startup!
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const importList = params.get('importList');
+
+    if (importList) {
+      try {
+        const decoded = decodeURIComponent(importList);
+        const rawItems = decoded.split(',');
+
+        const formattedItems = rawItems.map(rawItem => {
+          const parts = rawItem.split(':');
+          if (parts.length >= 3) {
+            return {
+              name: parts[0].trim(),
+              category: parts[1].trim(),
+              store: parts[2].trim(),
+              checked: false
+            };
+          } else {
+            return {
+              name: rawItem.trim(),
+              category: 'other',
+              store: 'Walmart',
+              checked: false
+            };
+          }
+        });
+
+        formattedItems.forEach(item => {
+          const defaultStores = ['Walmart', 'Costco', 'Lotte', 'Halal Store', 'Home Depot', 'Restaurant Depot'];
+          if (item.store && !defaultStores.includes(item.store) && !customStores.includes(item.store)) {
+            setCustomStores(prev => [...prev, item.store]);
+          }
+        });
+
+        setShoppingList(formattedItems);
+        setActiveTab('shopping');
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        try {
+          confetti({
+            particleCount: 120,
+            spread: 80,
+            origin: { y: 0.75 },
+            colors: ['#A99BFA', '#34D399', '#f59e0b']
+          });
+        } catch (err) {
+          console.warn('Confetti blocked or failed:', err);
+        }
+
+        alert('🛒 Success! Store-assigned grocery checklist imported from partner.');
+      } catch (err) {
+        console.error('Failed to parse share list:', err);
+      }
+    }
+  }, []);
+
+  // 3. Persist states in this profile's namespaced LocalStorage whenever changed
+  useEffect(() => { saveP(pid, 'expenses', expenses); }, [pid, expenses]);
+  useEffect(() => { saveP(pid, 'budget', budget); }, [pid, budget]);
+  useEffect(() => { saveP(pid, 'shopping_list', shoppingList); }, [pid, shoppingList]);
+  useEffect(() => { saveP(pid, 'custom_stores', customStores); }, [pid, customStores]);
+  useEffect(() => { saveP(pid, 'custom_suggestions', customSuggestions); }, [pid, customSuggestions]);
+  useEffect(() => { saveP(pid, 'stores', stores); }, [pid, stores]);
+  useEffect(() => { saveP(pid, 'recurring', recurring); }, [pid, recurring]);
+  useEffect(() => { saveP(pid, 'cat_budgets', catBudgets); }, [pid, catBudgets]);
+  useEffect(() => { saveP(pid, 'name_map', nameMap); }, [pid, nameMap]);
+
+  // Auto-post due recurring expenses (once per month each, on app open)
+  useEffect(() => {
+    if (!recurring.length) return;
+    const now = new Date();
+    const monthKey = currentMonthKey(now);
+    // Same posted-this-month rule Home and Settings read (utils/recurring.js).
+    const postedIds = postedRecurringIds(expenses, monthKey);
+    const due = recurring.filter(r =>
+      now.getDate() >= (r.dayOfMonth || 1) && !postedIds.has(r.id)
+    );
+    if (!due.length) return;
+    const newOnes = due.map(r => {
+      const day = Math.min(r.dayOfMonth || 1, now.getDate());
+      return {
+        id: `rec_${r.id}_${monthKey}`,
+        recurringId: r.id,
+        merchant: r.merchant?.trim() || r.name,
+        date: `${monthKey}-${String(day).padStart(2, '0')}`,
+        isGasMeter: false,
+        amount: r.amount,
+        items: [{ name: r.name, amount: r.amount, category: r.category || 'other' }]
+      };
+    });
+    setExpenses(prev => [...newOnes, ...prev]);
+    showToast(`${due.length} recurring expense${due.length > 1 ? 's' : ''} added automatically 🔁`);
+  }, [recurring]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 4. Handlers
+  const handleSaveExpense = (newExpense) => {
+    setExpenses([newExpense, ...expenses]);
+  };
+
+  const handleDeleteExpense = (id) => {
+    setExpenses(expenses.filter(exp => exp.id !== id));
+  };
+
+  const handleResetData = () => {
+    setExpenses([]);
+    setBudget(500);
+    setShoppingList([]);
+    setCustomStores([]);
+    setCustomSuggestions([]);
+    removeP(pid, 'expenses');
+    removeP(pid, 'budget');
+    removeP(pid, 'shopping_list');
+    removeP(pid, 'custom_stores');
+    removeP(pid, 'custom_suggestions');
+  };
+
+  // Checklist Actions
+  const handleAddShoppingItem = (itemObj) => {
+    try {
+      if (!itemObj) return;
+      const newItem = typeof itemObj === 'string'
+        ? { name: itemObj, checked: false, category: 'other', store: 'Walmart' }
+        : itemObj;
+
+      if (!newItem || !newItem.name) return;
+
+      const currentList = Array.isArray(shoppingList) ? shoppingList : [];
+      setShoppingList([newItem, ...currentList]);
+
+      const cleanName = newItem.name.toLowerCase().trim();
+      const defaultItemNames = [
+        'eggs', 'milk 1 gallon', 'lays chips', 'organic roma tomatoes', 'fresh gala apples',
+        'organic bananas', 'honey wheat bread', 'premium wheat container', 'halal chicken',
+        'fresh atlantic salmon', 'cheddar cheese', 'butter', 'rice bag', 'shampoo', 'soap bar',
+        'toilet paper 24-pack', 'coffee beans', 'lipton tea bags', 'mineral water case',
+        'soda cans 12-pack', 'gym membership', 'monthly home rent', 'school tuition fees'
+      ];
+
+      if (!defaultItemNames.includes(cleanName)) {
+        const suggestionsArray = Array.isArray(customSuggestions) ? customSuggestions : [];
+        const alreadyExists = suggestionsArray.some(sug => sug && sug.name && sug.name.toLowerCase().trim() === cleanName);
+        if (!alreadyExists) {
+          const updatedSuggestions = [...suggestionsArray, {
+            name: newItem.name,
+            category: newItem.category || 'other',
+            store: newItem.store || 'Walmart'
+          }];
+          setCustomSuggestions(updatedSuggestions);
+        }
+      }
+    } catch (err) {
+      console.error('Error in handleAddShoppingItem:', err);
+    }
+  };
+
+  const handleToggleShoppingItem = (idx) => {
+    try {
+      const currentList = Array.isArray(shoppingList) ? shoppingList : [];
+      const updated = [...currentList];
+      if (updated[idx]) {
+        updated[idx].checked = !updated[idx].checked;
+        setShoppingList(updated);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteShoppingItem = (idx) => {
+    try {
+      setShoppingList(prev => (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleClearShoppingList = () => {
+    setShoppingList([]);
+  };
+
+  const handleClearCheckedItems = () => {
+    setShoppingList(prev => (Array.isArray(prev) ? prev : []).filter(i => !i.checked));
+  };
+
+  const handleUpdateShoppingItem = (idx, updatedFields) => {
+    try {
+      const currentList = Array.isArray(shoppingList) ? shoppingList : [];
+      const updated = [...currentList];
+      const oldItem = updated[idx];
+      if (!oldItem) return;
+      const newItem = { ...oldItem, ...updatedFields };
+      updated[idx] = newItem;
+      setShoppingList(updated);
+
+      if (updatedFields.name) {
+        const cleanName = updatedFields.name.toLowerCase().trim();
+        const defaultItemNames = [
+          'eggs', 'milk 1 gallon', 'lays chips', 'organic roma tomatoes', 'fresh gala apples',
+          'organic bananas', 'honey wheat bread', 'premium wheat container', 'halal chicken',
+          'fresh atlantic salmon', 'cheddar cheese', 'butter', 'rice bag', 'shampoo', 'soap bar',
+          'toilet paper 24-pack', 'coffee beans', 'lipton tea bags', 'mineral water case',
+          'soda cans 12-pack', 'gym membership', 'monthly home rent', 'school tuition fees'
+        ];
+
+        if (!defaultItemNames.includes(cleanName)) {
+          const suggestionsArray = Array.isArray(customSuggestions) ? customSuggestions : [];
+          const alreadyExists = suggestionsArray.some(sug => sug && sug.name && sug.name.toLowerCase().trim() === cleanName);
+          if (!alreadyExists) {
+            const updatedSuggestions = [...suggestionsArray, {
+              name: newItem.name,
+              category: newItem.category || 'other',
+              store: newItem.store || 'Walmart'
+            }];
+            setCustomSuggestions(updatedSuggestions);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error in handleUpdateShoppingItem:', err);
+    }
+  };
+
+  const handleAddCustomStore = (newStore) => {
+    if (!customStores.includes(newStore)) {
+      setCustomStores([...customStores, newStore]);
+    }
+  };
+
+  return (
+    <div className="app-container">
+      {/* App Header */}
+      <header className="app-header">
+        <div className="logo-section">
+          <h1>SmartSpend</h1>
+          <p>{getGreeting(profile.name)} 👋</p>
+        </div>
+        <button
+          className="header-profile-chip"
+          style={{ borderColor: profile.color, boxShadow: `0 0 12px ${profile.color}44` }}
+          onClick={() => setActiveTab('settings')}
+          title={`${profile.name} — tap for profile settings`}
+        >
+          {profile.avatar}
+        </button>
+      </header>
+
+      {/* Main View Port content based on Navigation */}
+      <main className="app-content">
+        {activeTab === 'dashboard' && (
+          <Dashboard
+            expenses={expenses}
+            budget={budget}
+            onSaveBudget={setBudget}
+            showToast={showToast}
+            dashFilter={dashFilter}
+            dashFrom={dashFrom}
+            dashTo={dashTo}
+            setDashFilter={setDashFilter}
+            setDashFrom={setDashFrom}
+            setDashTo={setDashTo}
+            onGoHistory={() => setActiveTab('history')}
+            catBudgets={catBudgets}
+            onSetLimit={(cat) => { setSettingsFocusCat(cat); setActiveTab('settings'); }}
+            recurring={recurring}
+            onManageRecurring={(billId) => { setSettingsFocusRecurring(billId || true); setActiveTab('settings'); }}
+          />
+        )}
+
+        {activeTab === 'shopping' && (
+          <ShoppingList
+            listItems={shoppingList}
+            onAddItem={handleAddShoppingItem}
+            onToggleItem={handleToggleShoppingItem}
+            onDeleteItem={handleDeleteShoppingItem}
+            onClearList={handleClearShoppingList}
+            onClearCheckedItems={handleClearCheckedItems}
+            onUpdateItem={handleUpdateShoppingItem}
+            customStores={customStores}
+            onAddCustomStore={handleAddCustomStore}
+            customSuggestions={customSuggestions}
+            showToast={showToast}
+            stores={stores}
+            customCats={customCats}
+            onUpdateCustomCats={setCustomCats}
+            expenses={expenses}
+          />
+        )}
+
+        {activeTab === 'scan' && (
+          <Scanner
+            onSave={handleSaveExpense}
+            onOpenManual={() => setIsManualOpen(true)}
+            stores={stores}
+            showToast={showToast}
+            nameMap={nameMap}
+            onLearnNames={handleLearnNames}
+          />
+        )}
+
+        {activeTab === 'history' && (
+          <Reports
+            expenses={expenses}
+            onDelete={handleDeleteExpense}
+            viewMode={historyViewMode}
+            setViewMode={setHistoryViewMode}
+            activeCategoryFilter={historyCategoryFilter}
+            setActiveCategoryFilter={setHistoryCategoryFilter}
+          />
+        )}
+
+        {activeTab === 'insights' && (
+          <Insights expenses={expenses} budget={budget} catBudgets={catBudgets} />
+        )}
+
+        {activeTab === 'settings' && (
+          <Settings
+            budget={budget}
+            onSaveBudget={setBudget}
+            expenses={expenses}
+            onResetData={handleResetData}
+            onSaveAllExpenses={setExpenses}
+            customSuggestions={customSuggestions}
+            onSaveCustomSuggestions={setCustomSuggestions}
+            customStores={customStores}
+            showToast={showToast}
+            stores={stores}
+            onUpdateStores={setStores}
+            profile={profile}
+            onSignOut={onSignOut}
+            onUpdateProfile={onUpdateProfile}
+            recurring={recurring}
+            onUpdateRecurring={setRecurring}
+            catBudgets={catBudgets}
+            onUpdateCatBudgets={setCatBudgets}
+            nameMap={nameMap}
+            onUpdateNameMap={setNameMap}
+            focusCatBudget={settingsFocusCat}
+            onFocusCatBudgetDone={() => setSettingsFocusCat(null)}
+            focusRecurring={settingsFocusRecurring}
+            onFocusRecurringDone={() => setSettingsFocusRecurring(false)}
+          />
+        )}
+      </main>
+
+      {/* ManualForm bottom sheet — opened from Scan tab */}
+      {isManualOpen && (
+        <ManualForm
+          onClose={() => setIsManualOpen(false)}
+          onSave={handleSaveExpense}
+          customStores={customStores}
+          onAddCustomStore={handleAddCustomStore}
+          customSuggestions={customSuggestions}
+          showToast={showToast}
+        />
+      )}
+
+      {/* First-Run Welcome Modal */}
+      {showWelcome && (
+        <div className="welcome-modal-overlay">
+          <div className="welcome-modal-box">
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '2.8rem', marginBottom: '8px' }}>👋</div>
+              <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', fontWeight: 800, marginBottom: '8px' }}>
+                Welcome, {profile.name}!
+              </h3>
+              <p style={{ fontSize: '0.78rem', color: '#8A93A0', lineHeight: '1.55' }}>
+                Your private, local-first budget space is ready. Everything stays on your phone — here's a quick tour:
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '4px 0' }}>
+              <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>📊</span><span>Tap the <strong>budget ring</strong> on Home to set your monthly spending limit</span></div>
+              <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>📷</span><span>Tap <strong>Scan</strong> in the center of the nav bar to photograph any receipt</span></div>
+              <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>🛒</span><span>Build a <strong>grocery checklist</strong> and share it with family over WhatsApp in one tap</span></div>
+              <div className="welcome-feature-row"><span style={{ fontSize: '1.1rem' }}>⚙️</span><span>Visit <strong>Settings</strong> to set your monthly budget and manage your data</span></div>
+            </div>
+            <button onClick={dismissWelcome} className="solid-btn" style={{ padding: '14px', fontSize: '0.95rem', borderRadius: '16px' }}>
+              Let's get started 🚀
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className={`app-toast ${toast.type}`}>
+          {toast.type === 'success' ? '✓' : toast.type === 'error' ? '✕' : 'ℹ'} {toast.message}
+        </div>
+      )}
+
+      {/* Bottom Nav Bar — 5 tabs with center Scan button */}
+      <nav className="bottom-nav">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+        >
+          <Home size={22} />
+          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Home</span>
+          {activeTab === 'dashboard' && <div className="nav-item-indicator" />}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('shopping')}
+          className={`nav-item ${activeTab === 'shopping' ? 'active' : ''}`}
+        >
+          <ShoppingBag size={22} />
+          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Checklist</span>
+          {activeTab === 'shopping' && <div className="nav-item-indicator" />}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('scan')}
+          className={`nav-item scan-nav-item ${activeTab === 'scan' ? 'active' : ''}`}
+        >
+          <div className="scan-circle">
+            <Camera size={22} />
+          </div>
+          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Scan</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`nav-item ${activeTab === 'history' ? 'active' : ''}`}
+        >
+          <HistoryIcon size={22} />
+          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>History</span>
+          {activeTab === 'history' && <div className="nav-item-indicator" />}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('insights')}
+          className={`nav-item ${activeTab === 'insights' ? 'active' : ''}`}
+        >
+          <BarChart3 size={22} />
+          <span className="nav-label" style={{ fontSize: '0.62rem', fontWeight: 700, marginTop: '3px' }}>Insights</span>
+          {activeTab === 'insights' && <div className="nav-item-indicator" />}
+        </button>
+      </nav>
+    </div>
+  );
+}

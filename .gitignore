@@ -12,3 +12,8 @@ yarn-error.log*
 # Local tooling & personal test images
 .claude/
 receiptsample.jpeg
+
+# Private working files — this repo is PUBLIC, keep these out of it
+Chat_Transcripts/
+CLAUDE_MEMORY.md
+Backups/
