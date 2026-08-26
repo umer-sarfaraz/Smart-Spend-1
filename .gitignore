@@ -17,3 +17,7 @@ receiptsample.jpeg
 Chat_Transcripts/
 CLAUDE_MEMORY.md
 Backups/
+
+# Native app lives in its own PRIVATE repo (github.com/umer-sarfaraz/smartspend-native) — never in this public one
+Mobile-App/
+_stage_native.tar.gz
