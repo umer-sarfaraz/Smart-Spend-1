@@ -21,3 +21,12 @@ Backups/
 # Native app lives in its own PRIVATE repo (github.com/umer-sarfaraz/smartspend-native) — never in this public one
 Mobile-App/
 _stage_native.tar.gz
+
+# Session staging/cleanup artifacts must never reach this PUBLIC repo
+_to_delete/
+_stage*.tar.gz
+
+# Project-level folders added 2026-09-05 (reorganisation) — private, never in this PUBLIC repo
+_archive/
+design/
+PROJECT-MEMORY.md

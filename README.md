@@ -1,82 +1,41 @@
-# 📱 SmartSpend — Premium Local-First Mobile Expense Tracker
+# expenses mobile app — project map
 
-SmartSpend is a high-fidelity, high-performance Progressive Web Application (PWA) designed exclusively for seamless mobile expense tracking, smart visual bill parsing, collaborative family checklists, and pantry-audit budget rollovers. 
+This folder holds one product in two generations. **`Mobile-App/`** is the
+current product: a local-first iOS/Android expense + grocery app (Expo /
+React Native) with receipt OCR at line-item level, fourteen languages with
+full RTL, and optional family sharing — heading for App Store submission.
+The files at this root are the earlier **web app** (React/Vite PWA), still
+deployed on Vercel because it hosts the receipt-scanning proxy and the
+privacy/terms pages the native app depends on. Everything else here is
+either design handoffs or archive.
 
-Built with a **100% Local-First** and privacy-first philosophy, all data resides securely on the user's phone, giving instant response times with zero network dependencies.
+**Start with `Mobile-App/PROJECT-MEMORY.md`** (status, decisions, what is
+pending), then `Mobile-App/AGENTS.md` (the rules), then the top entry of
+`Mobile-App/release/CHANGELOG_NATIVE.md`.
 
----
+## What is where
 
-## 🚀 Key Features
+| Folder / file | What's inside | Why it matters |
+|---|---|---|
+| `Mobile-App/` | **The native app** — source, tests, tools, and its docs: `release/` (publish runbook + changelog), `product/` (locked decisions), `testing/`, `guidance/`, `store/` | The product. Its own README explains the inside. It is **not** part of this git repository — it has a private one, mirrored from `C:\dev\smartspend-native` |
+| `Mobile-App/PROJECT-MEMORY.md` | Current status, key decisions, parking list, open questions | The first thing to read |
+| `Mobile-App/release/` | Exact publish sequence, pre-flight checks, failure history, build history | Highest-value doc when something must ship |
+| `design/` | Claude Design handoffs (zips + unzipped folders), design references | Proposals to review and land — never copy blindly (`design/README.md`) |
+| `_archive/` | Everything obsolete, moved here instead of deleted, each with a reason | Nothing in the project is ever deleted (`_archive/README.md`) |
+| `api/` `public/` `src/` `index.html` `vite.config.js` `vercel.json` `package.json` `package-lock.json` | **The web app + receipt proxy** (`api/gemini.js`, `api/_guard.js`) and the hosted `privacy.html` / `terms.html` | Deployed by Vercel from this root on every `git push` to `main`. **Must stay here** — moving them would break the proxy the native app calls. The proxy's tested twin lives in `Mobile-App/api/`; keep both identical |
+| `public/guides/v2/` | **The help clips the app plays** — 27 animated WebP files rendered from the pages in `Mobile-App/tools/guides/` | The app fetches them from here rather than carrying 20 MB of them in every update. The path is versioned: a re-rendered clip is published under `v3/` and `GUIDES_VERSION` in `GuideClips.tsx` is bumped, because phones cache by URL (`vercel.json` marks `/guides/*` immutable for a year). **Push this repo before the app update that expects them** |
+| `Daily-Dev-Copy/` | An August 2026 dev copy of the web app (tracked by this repo; may be its own Vercel preview). Its `DESIGN_DIRECTION.md` is the original design spec | Reference only. Never the build target |
+| `.git`, `.gitignore` | This root's public repository (`umer-sarfaraz/Smart-Spend-1`) | The ignore file keeps `Mobile-App/`, `design/`, `_archive/` and private files out of the public repo |
 
-*   **📈 Dynamic Circular Budget Ring**: Real-time visualization of monthly limits with glow rings and automatic warning alerts when passing 85% usage. Tap directly on the progress ring to instantly adjust limits.
-*   **📷 AI Bill & Visual Object OCR Scanner**: Powered by Google Gemini AI (with a fallback offline rule engine), scan paper receipts to extract merchants, line items, and totals instantly.
-*   **🛒 Store-Grouped Family Checklist**: Auto-groups items by assigned target shops (e.g., Walmart, Costco, Lotte). Collaborative checklist importing and exporting with partners over **WhatsApp** in a single tap.
-*   **🌾 AI Pantry & Leftovers Rollover Engine**: Audits dry goods, fridge contents, and wheat bags. It estimates remaining volume percentages and automatically transfers the equivalent leftover cash value into next month's spending budget.
-*   **🧠 Self-Learning Autocompletion Engine**: Automatically catalogs new user-typed grocery item names, pairing them with historical categories and stores for immediate future tap-completion.
-*   **🎨 Ultra-Premium Modern Dark UI**: Implements glassmorphism, HSL tailormade glow accents,Outfit and Plus Jakarta Sans typography, and smooth touch drawer panels designed specifically for standard smartphone screens.
+## How to run the important things
 
----
-
-## 🛠️ Technology Stack
-
-1.  **Core Framework**: React 18 & Vite 5 (Fast, optimized single-page bundle).
-2.  **Styles**: Vanilla CSS Custom Premium System (Tailored variable theme tokens, high responsiveness, blur filters).
-3.  **Visualization**: Recharts 2 (Sector breakdown gradients and monthly trends).
-4.  **Parsing Utilities**: Tesseract.js (Offline client-side OCR) & Gemini 1.5 Flash API (Cloud vision extractor).
-5.  **Iconography**: Lucide React.
-6.  **Celebrations**: Try-catched canvas-confetti engines.
-
----
-
-## ⚙️ Mobile PWA Deployment Guide
-
-### Stand-alone App Setup
-This application is fully responsive and behaves like a native iOS/Android shell when added to the home screen:
-
-1.  **For Apple iOS (Safari)**: Open the app URL, tap the **Share** button, and select **Add to Home Screen**.
-2.  **For Google Android (Chrome)**: Open the app URL, tap the three dots, and select **Install App** or **Add to Home Screen**.
-
-### PWA Stability Hardening (Recent Updates)
-To ensure reliable operation under standalone PWA conditions (Safari WebClips and Android standalone containers), the codebase has been heavily hardened:
-*   **Anti-Hijacking Div Inputs**: Replaced legacy HTML `<form>` wrappers in checklist quick-type inputs and verify editors with modern active `div` elements, binding input `onKeyDown` (Enter key) and button `onClick` directly. This completely prevents standard browser navigation/reload hijacks common in WebClips.
-*   **Confetti Sandboxing**: Wrapped all physics celebration sparks in robust `try-catch` blocks to prevent thread-blocking DOM exceptions in isolated PWA sandboxes where `HTMLCanvasElement` rendering is restricted.
-*   **Chicken-and-Egg Camera Deadlock Solver**: Bypassed camera stream mounting locks. Viewports render immediately on `!cameraError` instead of waiting for `streamActive`, allowing `useRef` to mount the hardware video stream instantly.
-*   **Responsive Item Splitting Columns**: Moved delete buttons to card-level headers in manual split-item rows, allowing the numeric price fields to expand to full width on mobile viewports for clean, spacious numeric typing.
-
----
-
-## 💾 Local Storage Architecture
-
-All state variables are serialized and saved inside the device's native local storage. If offline or in standalone mode, standard operations are fully operational:
-
-| Storage Key | Data Structure | Purpose |
-| :--- | :--- | :--- |
-| `smartspend_expenses` | `Array<Expense>` | Primary ledger entries (Merchants, dates, amounts, items) |
-| `smartspend_budget` | `Float` | Monthly spending ceiling |
-| `smartspend_shopping_list` | `Array<ChecklistItem>` | Active checklist items grouped by store name |
-| `smartspend_custom_stores` | `Array<String>` | User-added stores populated in dropdown filters |
-| `smartspend_custom_suggestions` | `Array<Suggestion>` | Self-learned item suggestion catalog |
-| `smartspend_pantry_inventory` | `Array<PantryItem>` | Current refrigerator and dry container audited stocks |
-| `smartspend_gemini_key` | `String` | Secure local Google Gemini API key |
-
----
-
-## 💻 Local Development Setup
-
-To test and develop the application locally, clone this repository and run:
-
-```bash
-# Install package dependencies
-npm install
-
-# Run Vite responsive dev server
-npm run dev
-
-# Compile production-ready single page PWA bundle
-npm run build
-```
-
-Once the dev server is launched, access the local port (e.g. `http://localhost:5173`) on your device or scan your local network IP on your mobile phone to test hardware cameras and touch interactions immediately.
-
----
-*Created with 💙 by Antigravity pair-programming for premium personal finance management.*
+- **Publish an update or make a build of the native app:**
+  `Mobile-App/release/README.md` — owner-only, from the `C:\dev` mirror.
+- **Run the native app locally:** in `Mobile-App`: `npm.cmd install`,
+  `npx.cmd expo start`, Expo Go on the phone (`Mobile-App/guidance/RUN_IN_EXPO.md`).
+- **Verify the native app:** in `Mobile-App`: `npx.cmd tsc --noEmit` and
+  `npm.cmd test` (all suites green = done).
+- **Deploy the web side (proxy / legal pages):** commit at this root and
+  `git push origin main`; Vercel builds it. Secrets live only in Vercel's
+  environment variables, never in files.
+- **Run the web app locally:** `npm install`, `npm run dev` (Vite, port 5173).
