@@ -28,6 +28,7 @@ import {
   rateLimit,
   verifyAuth,
 } from './_guard.js';
+import { receiptSchema, candidateText, validReceipt, receiptGeneration } from './_receipt.js';
 
 const MODELS = [
   { id: 'gemini-3.5-flash', api: 'v1beta' },
@@ -35,7 +36,7 @@ const MODELS = [
   { id: 'gemini-2.5-flash-lite', api: 'v1beta' },
 ];
 
-const UPSTREAM_TIMEOUT_MS = 25_000;
+const UPSTREAM_TIMEOUT_MS = 18_000;
 
 /** Pull a JSON object out of a model reply that may be fenced or prefixed. */
 function extractJson(raw) {
@@ -54,6 +55,7 @@ function extractJson(raw) {
 
 export default async function handler(req, res) {
   applySecurityHeaders(res);
+  res.setHeader('X-PennyRoost-Scanner', '122');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -81,12 +83,14 @@ export default async function handler(req, res) {
   if (!body || typeof body !== 'object') return res.status(400).json({ error: 'bad_request' });
 
   const { prompt, mimeType } = body;
+  const receiptMode = body.receiptMode === 'text' || body.receiptMode === 'image' ? body.receiptMode : null;
   // `imageBase64` accepted as an alias so either client naming works.
   const image = body.base64Image || body.imageBase64;
 
   if (typeof prompt !== 'string' || !prompt.trim()) {
     return res.status(400).json({ error: 'Missing prompt' });
   }
+  if (prompt.length > 24000) return res.status(413).json({ error: 'payload too large' });
   if (image !== undefined) {
     if (typeof image !== 'string' || image.length < 100) {
       return res.status(400).json({ error: 'missing_image' });
@@ -112,15 +116,20 @@ export default async function handler(req, res) {
       temperature: 0,
       maxOutputTokens: 8192,
       responseMimeType: 'application/json',
+      ...(receiptMode ? { responseSchema: receiptSchema } : {}),
     },
   };
 
   let lastStatus = 502;
   let lastModel = '';
+  const started = Date.now();
+  const deadline = started + (receiptMode === 'text' ? 14_000 : 26_000);
 
   for (const model of MODELS) {
+    const remaining = deadline - Date.now();
+    if (remaining < 1000) break;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), Math.min(UPSTREAM_TIMEOUT_MS, remaining));
     try {
       const url =
         `https://generativelanguage.googleapis.com/${model.api}` +
@@ -129,10 +138,9 @@ export default async function handler(req, res) {
       const r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, generationConfig: receiptGeneration(payload.generationConfig, model.id, receiptMode) }),
         signal: controller.signal,
       });
-      clearTimeout(timer);
 
       if (!r.ok) {
         lastStatus = r.status;
@@ -144,10 +152,10 @@ export default async function handler(req, res) {
       }
 
       const data = await r.json();
-      const resultText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const resultText = candidateText(data);
       const parsed = extractJson(resultText);
 
-      if (!parsed) {
+      if (!parsed || (receiptMode && !validReceipt(parsed))) {
         // Log that parsing failed and which model — NEVER the content.
         console.warn(`[gemini] ${model.id} returned unparseable output`);
         lastStatus = 502;
@@ -156,6 +164,7 @@ export default async function handler(req, res) {
       }
 
       parsed._model = model.id;
+      if (receiptMode) parsed._scan = { mode: receiptMode, durationMs: Date.now() - started };
       return res.status(200).json(parsed);
     } catch (err) {
       clearTimeout(timer);
@@ -164,6 +173,8 @@ export default async function handler(req, res) {
       lastStatus = 504;
       lastModel = model.id;
       if (err?.name === 'AbortError') continue;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
