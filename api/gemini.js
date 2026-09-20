@@ -38,6 +38,21 @@ const MODELS = [
 
 const UPSTREAM_TIMEOUT_MS = 18_000;
 
+/**
+ * Has this server instance ENTERED this handler before?
+ *
+ * Not "answered a receipt": the flag is spent at entry, above the rate limit
+ * and the auth guards, so a refused call consumes it and the first real scan
+ * on that instance reports false. Read it as instance reuse and nothing more.
+ *
+ * Module scope, so it survives between invocations that reuse a warm instance
+ * and resets when the platform makes a new one. It is a fact about INSTANCE
+ * REUSE and nothing more. It is deliberately not called a cold start and must
+ * never be reported as a measured startup delay: no timer here can see how long
+ * the platform took before this file was even evaluated.
+ */
+let instanceHasServed = false;
+
 /** Pull a JSON object out of a model reply that may be fenced or prefixed. */
 function extractJson(raw) {
   let s = String(raw || '').trim();
@@ -55,52 +70,80 @@ function extractJson(raw) {
 
 export default async function handler(req, res) {
   applySecurityHeaders(res);
-  res.setHeader('X-PennyRoost-Scanner', '122');
+  res.setHeader('X-PennyRoost-Scanner', '143');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // ── Diagnostics, measurement only. Nothing below reads these to decide. ──
+  //
+  // Taken at handler ENTRY, before the guards, because the old `_scan.durationMs`
+  // started after validation and so reported the model loop while looking like
+  // it reported the server. The difference between the two is where a 2.9MB
+  // upload's parse cost shows up.
+  const handlerStarted = Date.now();
+  const firstRequestOnInstance = !instanceHasServed;
+  instanceHasServed = true;
+  const attempts = [];
+  let loopStartedAt = null;
+  let receiptMode = null;
+
+  /** Attached to every answer, success or failure. A scan that failed at the
+   *  third model is exactly the one whose attempt timings matter. */
+  const withDiag = (payload) => ({
+    ...payload,
+    _scan: {
+      mode: receiptMode,
+      serverMs: Date.now() - handlerStarted,
+      modelLoopMs: loopStartedAt === null ? null : Date.now() - loopStartedAt,
+      firstRequestOnInstance,
+      attempts,
+      // Kept under its old name for clients that predate this round.
+      durationMs: loopStartedAt === null ? null : Date.now() - loopStartedAt,
+    },
+  });
 
   // ── Abuse controls, cheapest check first ──
   const limited = rateLimit(clientKey(req), { limit: 20, windowMs: 60_000 });
   if (!limited.ok) {
     res.setHeader('Retry-After', String(limited.retryAfter || 60));
-    return res.status(429).json({ error: 'Too many scans in a row — try again in a minute.' });
+    return res.status(429).json(withDiag({ error: 'Too many scans in a row — try again in a minute.' }));
   }
-  if (!checkAppSecret(req)) return res.status(403).json({ error: 'forbidden' });
+  if (!checkAppSecret(req)) return res.status(403).json(withDiag({ error: 'forbidden' }));
 
   const auth = await verifyAuth(req);
-  if (!auth.ok) return res.status(401).json({ error: 'unauthorized' });
+  if (!auth.ok) return res.status(401).json(withDiag({ error: 'unauthorized' }));
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     // Distinguishable on purpose: the app shows "not set up on this build" and
     // falls straight through to manual entry.
-    return res.status(503).json({ error: 'AI service not configured on server' });
+    return res.status(503).json(withDiag({ error: 'AI service not configured on server' }));
   }
 
   // ── Validate before spending anything ──
   const body = req.body;
-  if (!body || typeof body !== 'object') return res.status(400).json({ error: 'bad_request' });
+  if (!body || typeof body !== 'object') return res.status(400).json(withDiag({ error: 'bad_request' }));
 
   const { prompt, mimeType } = body;
-  const receiptMode = body.receiptMode === 'text' || body.receiptMode === 'image' ? body.receiptMode : null;
+  receiptMode = body.receiptMode === 'text' || body.receiptMode === 'image' ? body.receiptMode : null;
   // `imageBase64` accepted as an alias so either client naming works.
   const image = body.base64Image || body.imageBase64;
 
   if (typeof prompt !== 'string' || !prompt.trim()) {
-    return res.status(400).json({ error: 'Missing prompt' });
+    return res.status(400).json(withDiag({ error: 'Missing prompt' }));
   }
-  if (prompt.length > 24000) return res.status(413).json({ error: 'payload too large' });
+  if (prompt.length > 24000) return res.status(413).json(withDiag({ error: 'payload too large' }));
   if (image !== undefined) {
     if (typeof image !== 'string' || image.length < 100) {
-      return res.status(400).json({ error: 'missing_image' });
+      return res.status(400).json(withDiag({ error: 'missing_image' }));
     }
     // base64 inflates ~4/3; check the decoded size against budget.
     if ((image.length * 3) / 4 > MAX_BODY_BYTES) {
-      return res.status(413).json({ error: 'That photo is too large — try again from the camera.' });
+      return res.status(413).json(withDiag({ error: 'That photo is too large — try again from the camera.' }));
     }
     if (typeof mimeType !== 'string' || !/^image\/(jpeg|jpg|png|webp|heic)$/i.test(mimeType)) {
-      return res.status(415).json({ error: 'unsupported_media_type' });
+      return res.status(415).json(withDiag({ error: 'unsupported_media_type' }));
     }
   }
 
@@ -123,6 +166,7 @@ export default async function handler(req, res) {
   let lastStatus = 502;
   let lastModel = '';
   const started = Date.now();
+  loopStartedAt = started;
   const deadline = started + (receiptMode === 'text' ? 14_000 : 26_000);
 
   for (const model of MODELS) {
@@ -130,6 +174,10 @@ export default async function handler(req, res) {
     if (remaining < 1000) break;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.min(UPSTREAM_TIMEOUT_MS, remaining));
+    const attemptStarted = Date.now();
+    // Model id and a short outcome code only. Never a status body, which on a
+    // 400 from upstream can quote the prompt back.
+    const note = (outcome) => attempts.push({ model: model.id, ms: Date.now() - attemptStarted, outcome });
     try {
       const url =
         `https://generativelanguage.googleapis.com/${model.api}` +
@@ -143,6 +191,7 @@ export default async function handler(req, res) {
       });
 
       if (!r.ok) {
+        note(`http_${r.status}`);
         lastStatus = r.status;
         lastModel = model.id;
         // 404 (model not on this endpoint), 429 (quota) and 5xx are worth another
@@ -156,6 +205,7 @@ export default async function handler(req, res) {
       const parsed = extractJson(resultText);
 
       if (!parsed || (receiptMode && !validReceipt(parsed))) {
+        note(parsed ? 'invalid' : 'unparseable');
         // Log that parsing failed and which model — NEVER the content.
         console.warn(`[gemini] ${model.id} returned unparseable output`);
         lastStatus = 502;
@@ -163,11 +213,34 @@ export default async function handler(req, res) {
         continue;
       }
 
+      note('ok');
       parsed._model = model.id;
-      if (receiptMode) parsed._scan = { mode: receiptMode, durationMs: Date.now() - started };
+      if (receiptMode) {
+        parsed._scan = {
+          mode: receiptMode,
+          // Unchanged name and meaning, so a client from before this round
+          // reads exactly what it always did.
+          durationMs: Date.now() - started,
+          serverMs: Date.now() - handlerStarted,
+          modelLoopMs: Date.now() - started,
+          firstRequestOnInstance,
+          attempts,
+        };
+        // Counts, not content. `thoughtsTokens` is the figure that bills as
+        // output, and it has never been visible to anyone reading this app.
+        const usage = data?.usageMetadata;
+        if (usage) {
+          parsed._usage = {
+            promptTokens: Number(usage.promptTokenCount) || 0,
+            candidatesTokens: Number(usage.candidatesTokenCount) || 0,
+            thoughtsTokens: Number(usage.thoughtsTokenCount) || 0,
+          };
+        }
+      }
       return res.status(200).json(parsed);
     } catch (err) {
       clearTimeout(timer);
+      note(err?.name === 'AbortError' ? 'timeout' : 'error');
       // Failure MODE only — never the body, image, or upstream text.
       console.error('[gemini] upstream failure:', err?.name || 'error');
       lastStatus = 504;
@@ -179,12 +252,12 @@ export default async function handler(req, res) {
   }
 
   if (lastStatus === 429) {
-    return res.status(429).json({
+    return res.status(429).json(withDiag({
       error: 'Daily AI quota reached — resets at midnight (Pacific Time).',
       tried: MODELS.map((m) => m.id),
-    });
+    }));
   }
-  return res.status(502).json({ error: `Receipt reading is unavailable right now (${lastModel || 'upstream'}).` });
+  return res.status(502).json(withDiag({ error: `Receipt reading is unavailable right now (${lastModel || 'upstream'}).` }));
 }
 
 export const config = {
