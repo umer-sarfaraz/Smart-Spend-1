@@ -30,10 +30,17 @@ import {
 } from './_guard.js';
 import { receiptSchema, candidateText, validReceipt, receiptGeneration } from './_receipt.js';
 
+// The two backups behind gemini-3.5-flash were gemini-2.5-flash and
+// gemini-2.5-flash-lite. Round 143's diagnostics showed both answering 404 in
+// under half a second on every fallback attempt (2026-09-20): Google moved the
+// 2.5 family to preview and this key no longer reaches them on v1beta. So a
+// timeout on the main model had been a total failure for as long as that was
+// true, and nobody could see it, because the losing attempts were never
+// reported. The main model is unchanged; only the backups behind it are alive.
 const MODELS = [
   { id: 'gemini-3.5-flash', api: 'v1beta' },
-  { id: 'gemini-2.5-flash', api: 'v1beta' },
-  { id: 'gemini-2.5-flash-lite', api: 'v1beta' },
+  { id: 'gemini-3.5-flash-lite', api: 'v1beta' },
+  { id: 'gemini-3.1-flash-lite', api: 'v1beta' },
 ];
 
 const UPSTREAM_TIMEOUT_MS = 18_000;
@@ -70,7 +77,7 @@ function extractJson(raw) {
 
 export default async function handler(req, res) {
   applySecurityHeaders(res);
-  res.setHeader('X-PennyRoost-Scanner', '143');
+  res.setHeader('X-PennyRoost-Scanner', '147');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });

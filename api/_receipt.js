@@ -36,7 +36,17 @@ export function receiptGeneration(config, modelId, mode) {
     // Gemini 3 recommends default sampling. OCR text is already transcribed;
     // spend less time reasoning about it and validate prices deterministically.
     const { temperature, ...rest } = config;
-    return mode === 'text' ? { ...rest, thinkingConfig: { thinkingLevel: 'minimal' } } : rest;
+    if (mode === 'text') return { ...rest, thinkingConfig: { thinkingLevel: 'minimal' } };
+    // Photos used to carry NO thinkingConfig, so the model reasoned at its full
+    // dynamic budget on every receipt. Round 143's diagnostics measured what
+    // that cost on real scans (2026-09-20): 2,000 to 3,600 thinking tokens per
+    // receipt against 600 to 1,200 of actual answer, billed at the output rate,
+    // and 12 to 18 seconds of the wait — with four of seven scans hitting the
+    // 18-second cut-off outright. `low`, not `minimal`: a photo still has to be
+    // READ, and the text path's `minimal` was chosen for input that was already
+    // transcribed. Validated by rescanning the same receipts and comparing
+    // item by item (Umer's call, 2026-09-21).
+    return { ...rest, thinkingConfig: { thinkingLevel: 'low' } };
   }
   return mode === 'text' ? { ...config, thinkingConfig: { thinkingBudget: 0 } } : config;
 }
