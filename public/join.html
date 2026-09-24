@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Join a family on PennyRoost</title>
+<!-- The preview card WhatsApp, iMessage and Telegram draw under the link. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="PennyRoost">
+<meta property="og:title" content="Join a family on PennyRoost">
+<meta property="og:description" content="You were invited to share a household budget. Tap to join.">
+<meta property="og:image" content="https://cgwwtwdysegqvcdisltu.supabase.co/storage/v1/object/public/brand/pennyroost-192.png">
+<meta property="og:image:width" content="192">
+<meta property="og:image:height" content="192">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="/brand/pennyroost-96.png">
+<style>
+  :root { color-scheme: dark light; --bg:#0B0E13; --card:#151A23; --text:#F2F4F8; --dim:#9AA3B2; --accent:#F5B940; --line:#242B37; }
+  @media (prefers-color-scheme: light) { :root { --bg:#F6F7FA; --card:#FFFFFF; --text:#12151B; --dim:#5D6675; --line:#E3E6EC; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px 16px; }
+  .card { width:100%; max-width:420px; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:28px 24px; text-align:center; }
+  img.logo { width:72px; height:72px; border-radius:18px; }
+  h1 { font-size:22px; margin:16px 0 6px; }
+  p { margin:0 0 16px; color:var(--dim); }
+  .code { font:600 30px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing:.12em; background:var(--bg); border:1px dashed var(--line); border-radius:14px; padding:16px 12px; margin:18px 0 10px; user-select:all; -webkit-user-select:all; }
+  .btn { display:block; width:100%; padding:14px 16px; border-radius:14px; text-decoration:none; font-weight:600; margin-top:10px; border:1px solid var(--line); color:var(--text); background:transparent; font-size:16px; cursor:pointer; }
+  .btn.primary { background:var(--accent); color:#1A1400; border-color:var(--accent); }
+  .steps { text-align:left; color:var(--dim); font-size:14px; margin:18px 0 0; padding-left:20px; }
+  .steps li { margin:4px 0; }
+  .hint { font-size:13px; color:var(--dim); margin-top:12px; }
+  #copied { color:var(--accent); font-size:14px; height:20px; margin:0; }
+  .nocode { display:none; }
+</style>
+</head>
+<body>
+<main class="card">
+  <img class="logo" src="/brand/pennyroost-192.png" alt="" width="72" height="72">
+  <h1>Join a family on PennyRoost</h1>
+  <p id="lead">Someone invited you to share a household budget.</p>
+
+  <div id="has-code">
+    <div class="code" id="code" aria-label="Invite code">—</div>
+    <p id="copied" aria-live="polite"></p>
+    <button class="btn" id="copy" type="button">Copy the code</button>
+    <a class="btn primary" id="open" href="#">Open PennyRoost</a>
+    <a class="btn" id="store" href="https://apps.apple.com/app/id6810498300" rel="noopener">Get the app on the App Store</a>
+    <ol class="steps">
+      <li>Install PennyRoost and sign in (or create an account).</li>
+      <li>Tap this link again — the code is filled in for you.</li>
+      <li>Or open <strong>Family → Join a family</strong> and paste the code.</li>
+    </ol>
+    <p class="hint">The code works once and expires after three days.</p>
+  </div>
+
+  <div id="no-code" class="nocode">
+    <p>This link has no invite code in it. Ask the person who invited you to send the link again, or type the code in the app under <strong>Family → Join a family</strong>.</p>
+    <a class="btn" href="https://apps.apple.com/app/id6810498300" rel="noopener">Get the app on the App Store</a>
+  </div>
+</main>
+<script>
+(function () {
+  var ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var re = new RegExp('^[' + ALPHA + ']{8}$');
+  function bare(s) { return String(s || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase(); }
+  var m = /\/join\/([A-Za-z0-9-]{8,9})/.exec(location.pathname);
+  var q = new URLSearchParams(location.search).get('code');
+  var code = bare(m ? m[1] : q);
+  if (!re.test(code)) {
+    document.getElementById('has-code').style.display = 'none';
+    document.getElementById('no-code').style.display = 'block';
+    return;
+  }
+  var pretty = code.slice(0, 4) + '-' + code.slice(4);
+  document.getElementById('code').textContent = pretty;
+  document.getElementById('open').href = 'pennyroost://join?code=' + code;
+  document.getElementById('copy').addEventListener('click', function () {
+    var done = function () { document.getElementById('copied').textContent = 'Copied ' + pretty; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(pretty).then(done, function () {});
+    else { var r = document.createRange(); r.selectNodeContents(document.getElementById('code')); var s = getSelection(); s.removeAllRanges(); s.addRange(r); try { document.execCommand('copy'); done(); } catch (e) {} }
+  });
+})();
+</script>
+</body>
+</html>
