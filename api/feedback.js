@@ -28,7 +28,7 @@ import {
 
 const BREVO_URL = 'https://api.brevo.com/v3/smtp/email';
 const UPSTREAM_TIMEOUT_MS = 15_000;
-const DEFAULT_TO = 'm.umersarfaraz@gmail.com';
+const DEFAULT_TO = 'support@pennyroost.com';
 const DEFAULT_FROM = 'support@pennyroost.com';
 
 /** Message and attachment limits. Generous for a bug report, tight for abuse. */

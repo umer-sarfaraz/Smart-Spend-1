@@ -37,14 +37,18 @@ footer a{color:var(--muted);text-decoration:underline}
 <body>
 <main>
 <h1>Privacy Policy</h1>
-<p><strong>Last updated: 24 August 2026</strong></p>
+<p><strong>Last updated: 27 September 2026</strong></p>
 <hr />
 <h2>The short version</h2>
 <p>Your expenses live <strong>on your phone</strong>. We can't see them.</p>
 <p>If you turn on family sharing, the expenses you mark <strong>shared</strong> are stored on our
 server so your household can see them too. Everything else stays local.</p>
-<p>When you scan a receipt, the <strong>photo is sent to Google</strong> to be read. It isn't
-stored anywhere afterwards.</p>
+<p>When you scan a receipt, your phone reads the words on it and sends <strong>that text</strong>
+to Google to be sorted into items and prices. When the phone cannot read it, the
+<strong>photo</strong> is sent instead. If you use <strong>Ask</strong>, the one sentence you type goes the
+same way. None of it is stored anywhere afterwards, and <strong>the app asks your
+permission before any of it ever leaves your phone</strong> — you can say no and keep
+using everything else.</p>
 <p>We don't sell your data. We don't run ads. We don't track you across other apps.</p>
 <hr />
 <h2>What we collect, and why</h2>
@@ -52,12 +56,17 @@ stored anywhere afterwards.</p>
 <p>Unless you turn on family sharing, all of this is on your device and nowhere else:</p>
 <ul>
 <li>Your expenses, and the individual items on each receipt</li>
+<li><strong>The photo of every receipt you scan</strong>, so you can look at the original later</li>
 <li>Your budgets and category limits</li>
 <li>Your shopping list</li>
 <li>Your recurring bills</li>
-<li>Corrections you make to item names</li>
+<li>Corrections you make to item names, and the names the app learns from them</li>
 </ul>
 <p>We have no way to read any of it.</p>
+<p><strong>Receipt photos never leave your phone.</strong> They are not uploaded to your
+household, and they are not written into an export file either — an export you
+save to a cloud drive carries the figures, never the pictures. You can see how
+much space they use, and delete them, at <strong>Settings → Scanning &amp; data</strong>.</p>
 <h3>Only if you create an account</h3>
 <p>You only need an account to share a household. Then we store:</p>
 <div class="tablewrap"><table>
@@ -77,8 +86,12 @@ stored anywhere afterwards.</p>
 <td>Stored hashed — never in a readable form, not even to us</td>
 </tr>
 <tr>
-<td>Household membership and role</td>
-<td>To know whose data you may see</td>
+<td><strong>The name you enter</strong></td>
+<td>So the other people in your household see a name beside a shared expense instead of an anonymous row. You choose it when you sign up, you can change it at any time at <strong>Settings → Family → Your name</strong>, and the only people who ever see it are the members of a household you joined</td>
+</tr>
+<tr>
+<td>Household membership, role and permissions</td>
+<td>To know whose data you may see, and what the household owner has allowed you to change</td>
 </tr>
 <tr>
 <td>Expenses you marked <strong>shared</strong></td>
@@ -91,17 +104,78 @@ stored anywhere afterwards.</p>
 </tbody>
 </table></div>
 <p>Expenses you mark <strong>private</strong> are never uploaded.</p>
-<h3>Receipt photos</h3>
-<p>When you scan a receipt, the image is sent to <strong>Google's Gemini API</strong> to extract
-the merchant, items and prices. It passes through our server on the way.</p>
+<h3>Scanning a receipt</h3>
+<p>Reading a receipt takes two steps, and they happen in different places.</p>
+<p><strong>Step one — the words come off the paper, on your phone.</strong> In English, Spanish,
+French, German, Portuguese, Turkish and Indonesian, your phone does this itself,
+using the text recognition built into iOS and Android. Nothing is sent, and the
+photo stays where it is.</p>
+<p><strong>Step two — the words are sorted into items and prices.</strong> That part goes to
+<strong>Google's Gemini API</strong>, through our server, because working out that a line
+reading <code>GV WHL MLK 1GAL 3.48</code> is a gallon of milk at $3.48 is the thing the
+model is for.</p>
+<p>So what is actually sent depends on what your phone managed:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>What leaves your phone</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Your phone read the receipt</td>
+<td><strong>The text only.</strong> The photo never leaves</td>
+</tr>
+<tr>
+<td>Your phone could not read it, or your language is not one of the seven above</td>
+<td><strong>The photo</strong>, as a fallback, so the scan still works</td>
+</tr>
+</tbody>
+</table></div>
+<p>Either way:</p>
 <ul>
-<li>The photo is <strong>not saved</strong> on our server, and <strong>not written to any log</strong></li>
-<li>We keep only the text extracted from it — the items and prices</li>
+<li>Nothing is <strong>saved</strong> on our server, and nothing is <strong>written to any log</strong> —
+  not the photo, not the text</li>
+<li>What comes back is the items and prices, and they are kept <strong>on your phone</strong></li>
 <li>Google's handling is governed by their own terms:
   https://ai.google.dev/gemini-api/terms</li>
 </ul>
-<p>If you would rather no photo ever left your phone, you can add every receipt by
+<p>The photo you took is saved on your phone, and only on your phone, so you can
+open the original receipt again later. See <em>Stays on your phone only</em> above.</p>
+<p>If you would rather nothing left your phone at all, you can add every receipt by
 hand and use the whole app without ever scanning one.</p>
+<h3>Ask</h3>
+<p>Ask lets you type one sentence — <em>“add milk to my list”</em>, <em>“how much is left
+this month”</em> — instead of tapping through the app. <strong>That sentence is sent to
+Google's Gemini API</strong>, through the same server the receipt photo uses, to work out
+what you meant by it.</p>
+<ul>
+<li><strong>Nothing of yours goes with it.</strong> Not your expenses, totals, budgets,
+  merchants, history, account or any device identifier. The request contains the
+  sentence and the app's fixed list of category names — the same list for every
+  user, whoever they are.</li>
+<li><strong>The model decides what you meant; your phone does the rest.</strong> When Ask
+  answers <em>“$142 left this month”</em>, that figure was worked out on your phone from
+  data Google never received. The model only ever returns an intent.</li>
+<li>The sentence is <strong>not saved</strong> on our server and <strong>not written to any log</strong>.</li>
+<li>Ask is optional, and it is a shortcut rather than a feature of its own —
+  everything it can do can also be done by tapping, with no network at all. If Ask
+  cannot reach the network, or you have not given permission, a parser built into
+  the app handles the common sentences on the phone.</li>
+</ul>
+<h3>Permission before anything leaves your phone</h3>
+<p>The first time you scan a receipt, and the first time you use Ask, the app stops
+and asks. The request names <strong>Google</strong>, says that the receipt's text or its photo
+is what gets sent, and says what is kept. <strong>Allow</strong> or <strong>Not now</strong>.</p>
+<ul>
+<li>Saying no is a supported answer, not a broken app. Typing receipts in by hand,
+  budgets, category limits, your shopping list, recurring bills, history, search
+  and Price Watch are all local and all keep working.</li>
+<li>You can change your mind either way at <strong>Settings → Legal → Reading receipts
+  with AI</strong>.</li>
+<li>Nothing is sent while that permission is off.</li>
+</ul>
 <h3>Barcodes</h3>
 <p>If you scan a product barcode to add it to your shopping list, the <strong>barcode
 number</strong> — and nothing else — is sent to <strong>Open Food Facts</strong>, a non-profit open
@@ -117,6 +191,18 @@ food database, to look up the product name.</p>
 </ul>
 <p>Barcode scanning is optional. Typing an item name never touches the network —
 suggestions come from your own history and a list built into the app.</p>
+<h3>Help clips</h3>
+<p>The step-by-step guides in <strong>Settings → How it works</strong> are short animations kept
+on our website rather than inside the app, so the app stays small. The first time
+you play one it downloads and is then cached on your phone; after that it plays
+offline and sends nothing.</p>
+<ul>
+<li>The request asks for a clip by name. It carries no account, no expense data and
+  no device identifier.</li>
+<li>Like any web server, ours records the ordinary request details — an IP address
+  and a timestamp. We do not connect those to your account or to anything in your
+  ledger, and we do not use them for analytics.</li>
+</ul>
 <h3>What we never collect</h3>
 <ul>
 <li>Bank logins or card numbers — <strong>we never ask for bank access at all</strong></li>
@@ -129,11 +215,15 @@ suggestions come from your own history and a list built into the app.</p>
 <h2>Who else can see your data</h2>
 <p><strong>Nobody, except:</strong></p>
 <ul>
-<li>Members of a household you joined, and only the expenses you marked shared</li>
+<li>Members of a household you joined — the expenses you marked shared, and the
+    name you chose</li>
 <li>Our infrastructure providers, who process data on our behalf:</li>
-<li><strong>Supabase</strong> — database and accounts</li>
-<li><strong>Vercel</strong> — the server that relays receipt photos</li>
-<li><strong>Google</strong> — reads the receipt photo</li>
+<li><strong>Supabase</strong> — database and accounts, if you create one</li>
+<li><strong>Vercel</strong> — our server: it relays receipt text (or the photo) and Ask
+    sentences on their way to Google, and hosts the help clips</li>
+<li><strong>Google</strong> — sorts the receipt into items and prices, and works out what an
+    Ask sentence means. Their handling is governed by their own terms:
+    https://ai.google.dev/gemini-api/terms</li>
 <li><strong>Open Food Facts</strong> — receives a barcode number when you scan one, nothing else</li>
 <li><strong>Stripe</strong> — payments. Not active in this version: nothing is for sale, so
     no payment data exists yet. Listed here because it applies the moment it is.</li>
@@ -152,7 +242,7 @@ everything in a readable file, with no account required.</p>
   owner of a household with other people in it, ownership passes to another adult
   so your family does not lose their own records.</li>
 </ul>
-<p>If you would rather we did it, email <strong>m.umersarfaraz@gmail.com</strong> and we will
+<p>If you would rather we did it, email <strong>support@pennyroost.com</strong> and we will
 action it within 30 days.</p>
 <p>If you are in California (CCPA) or the EU/UK (GDPR) you have rights to access,
 correct, delete and port your data, and to object to processing. Everything above
@@ -168,10 +258,10 @@ live systems immediately and from backups within 30 days.</p>
 <li>Sign-in tokens are held in your phone's Keychain / Keystore</li>
 <li>Household data is isolated at the <strong>database</strong> level, so one household's rows
   cannot be returned to another even if our app code has a bug</li>
-<li>Receipt contents are never written to logs</li>
+<li>Receipt photos, their contents and Ask sentences are never written to logs</li>
 </ul>
 <p>No system is perfect. If you find a security problem, email
-<strong>m.umersarfaraz@gmail.com</strong> and we will respond.</p>
+<strong>support@pennyroost.com</strong> and we will respond.</p>
 <hr />
 <h2>Children</h2>
 <p>The app is not directed at children under 13 and we do not knowingly collect
@@ -184,11 +274,11 @@ us and we will remove it.</p>
 <p>If this policy changes in a way that affects you, we will tell you in the app
 before it takes effect. The date at the top always reflects the current version.</p>
 <h2>Contact</h2>
-<p><strong>Umer Sarfaraz</strong> — m.umersarfaraz@gmail.com</p>
+<p><strong>InfraSpatial Solutions LLC</strong> — support@pennyroost.com</p>
 <footer>
 <a href="/privacy.html">Privacy policy</a> &middot;
 <a href="/terms.html">Terms of use</a> &middot;
-<a href="mailto:m.umersarfaraz@gmail.com">Contact</a>
+<a href="mailto:support@pennyroost.com">Contact</a>
 </footer>
 </main>
 </body>
