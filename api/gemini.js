@@ -77,7 +77,7 @@ function extractJson(raw) {
 
 export default async function handler(req, res) {
   applySecurityHeaders(res);
-  res.setHeader('X-PennyRoost-Scanner', '147');
+  res.setHeader('X-PennyRoost-Scanner', '173');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
