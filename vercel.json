@@ -41,6 +41,11 @@
     },
     {
       "source": "/((?!api/).*)",
+      "has": [{ "type": "host", "value": "pennyroost.com" }],
+      "destination": "/home.html"
+    },
+    {
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]
