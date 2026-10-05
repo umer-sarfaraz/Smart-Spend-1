@@ -30,6 +30,20 @@
       ]
     }
   ],
+  "redirects": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "pennyroost.com" }],
+      "destination": "/home.html",
+      "permanent": false
+    },
+    {
+      "source": "/index.html",
+      "has": [{ "type": "host", "value": "pennyroost.com" }],
+      "destination": "/home.html",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/join",
