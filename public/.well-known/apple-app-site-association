@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appIDs": ["56K24SLB22.com.umersarfaraz.pennyroost"],
+        "appIDs": ["56K24SLB22.com.pennyroost.app"],
         "components": [
           { "/": "/join", "comment": "Family invite: pennyroost join page" },
           { "/": "/join/*", "comment": "Family invite with the code in the path" }
