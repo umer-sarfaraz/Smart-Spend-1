@@ -10,5 +10,8 @@
         ]
       }
     ]
+  },
+  "webcredentials": {
+    "apps": ["56K24SLB22.com.pennyroost.app"]
   }
 }
