@@ -1,41 +1,394 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Penny Roost</title>
-<meta name="description" content="Scan a receipt and every item is saved with its price. Your list shows where things cost less, and your budget shows what is left for today.">
+<title>Penny Roost: receipt scanner, grocery list and budget</title>
+<meta name="description" content="Scan a receipt and every line is saved with its price. Penny Roost shows where things cost less, keeps a shopping list that knows the store, and a budget that knows what day it is. For iPhone.">
+<link rel="canonical" href="https://pennyroost.com/">
+<meta name="theme-color" content="#0B0E13">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Penny Roost">
-<meta property="og:title" content="Penny Roost">
-<meta property="og:description" content="Receipts, groceries and budget in one app.">
-<meta property="og:image" content="https://pennyroost.com/brand/pennyroost-192.png">
-<link rel="icon" href="/brand/pennyroost-96.png">
-<style>
-  :root { color-scheme: dark light; --bg:#0B0E13; --card:#151A23; --text:#F2F4F8; --dim:#9AA3B2; --accent:#F5B940; --line:#242B37; }
-  @media (prefers-color-scheme: light) { :root { --bg:#F6F7FA; --card:#FFFFFF; --text:#12151B; --dim:#5D6675; --line:#E3E6EC; } }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px 16px; }
-  .card { width:100%; max-width:420px; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:28px 24px; text-align:center; }
-  img.logo { width:72px; height:72px; border-radius:18px; }
-  h1 { font-size:24px; margin:16px 0 6px; }
-  p { margin:0 0 16px; color:var(--dim); }
-  .btn { display:block; width:100%; padding:14px 16px; border-radius:14px; text-decoration:none; font-weight:600; margin-top:8px; background:var(--accent); color:#1A1400; }
-  nav { margin-top:20px; font-size:15px; }
-  nav a { color:var(--text); text-decoration:none; margin:0 8px; }
-  nav a:hover { text-decoration:underline; }
-  .small { font-size:13px; margin:20px 0 0; }
-</style>
+<meta property="og:url" content="https://pennyroost.com/">
+<meta property="og:title" content="Penny Roost: your bank sees one line, Penny Roost sees every item">
+<meta property="og:description" content="A receipt scanner, grocery list and budget for iPhone. Every item, every price, and where it costs less.">
+<meta property="og:image" content="https://pennyroost.com/site/img/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/site/img/icon-64.png" sizes="64x64">
+<link rel="apple-touch-icon" href="/site/img/apple-touch-icon.png">
+<link rel="preload" href="/site/fonts/fraunces-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/site/fonts/instrument-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/site/css/site.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Penny Roost","operatingSystem":"iOS","applicationCategory":"FinanceApplication","url":"https://pennyroost.com/","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"InfraSpatial Solutions LLC","email":"support@pennyroost.com"}}
+</script>
 </head>
 <body>
-<main class="card">
-  <img class="logo" src="/brand/pennyroost-192.png" alt="" width="72" height="72">
-  <h1>Penny Roost</h1>
-  <p>Receipts, groceries and budget in one app.</p>
-  <p>Scan a receipt and every item is saved with its price. Your list shows where things cost less, and your budget shows what is left for today.</p>
-  <a class="btn" href="https://apps.apple.com/app/id6819345454">Get Penny Roost on the App Store</a>
-  <nav><a href="/support.html">Support</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></nav>
-  <p class="small">Penny Roost is made by InfraSpatial Solutions LLC.</p>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="Penny Roost home">
+      <img src="/site/img/icon-128.png" alt="" width="36" height="36">
+      <span class="wordmark"><b>Penny</b> Roost</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#prices">Prices</a>
+      <a href="/support.html">Support</a>
+      <a class="btn btn-copper btn-small" href="https://apps.apple.com/app/id6819345454">Get the app</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div class="hero-copy">
+        <span class="eyebrow"><img src="/site/img/icon-64.png" alt="" width="22" height="22"><span><b>For iPhone</b> · receipts, groceries and budget</span></span>
+        <h1 id="hero-title"><span class="line">Your bank sees one line.</span> <em class="line">Penny Roost sees every&nbsp;item.</em></h1>
+        <p class="lede">Scan a receipt and every line is saved with its price. Over time you get your own price history: where milk is cheaper, how fast your basket is rising, and what is left to spend today.</p>
+        <div class="cta-row">
+          <a class="btn btn-copper" href="https://apps.apple.com/app/id6819345454">
+            Download on the App Store
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a class="btn btn-ghost" href="#how">See how it works</a>
+        </div>
+        <ul class="facts" aria-label="In short">
+          <li>Free to start</li>
+          <li>No ads</li>
+          <li>Works offline</li>
+          <li>14 languages</li>
+        </ul>
+      </div>
+
+      <div class="hero-art" aria-hidden="true">
+        <div class="glow"></div>
+        <div class="bankline">
+          <div class="lbl">What your bank shows</div>
+          <div class="row"><b>MARKET #0214</b><span>−$78.64</span></div>
+        </div>
+        <div class="receipt-wrap">
+          <div class="receipt">
+            <div class="rhead">RECEIPT</div>
+            <div class="rmeta"><span>09/24/26 18:42</span><span>#0214</span></div>
+            <hr>
+            <div class="ln item" style="animation-delay:0.15s"><span>WHOLE MILK 1 GAL</span><span>4.29</span></div>
+            <div class="ln item" style="animation-delay:0.6s"><span>GREEK YOGURT 32OZ</span><span>5.49</span></div>
+            <div class="ln item" style="animation-delay:1.05s"><span>CHICKEN BRST 2.5LB</span><span>9.87</span></div>
+            <div class="ln item" style="animation-delay:1.5s"><span>ROMA TOMATOES 2LB</span><span>3.12</span></div>
+            <div class="ln item" style="animation-delay:1.95s"><span>OLIVE OIL 1L</span><span>14.78</span></div>
+            <div class="ln item" style="animation-delay:2.4s"><span>BASMATI RICE 10LB</span><span>12.18</span></div>
+            <div class="ln item" style="animation-delay:2.85s"><span>COFFEE BEANS</span><span>11.12</span></div>
+            <div class="ln item" style="animation-delay:3.3s"><span>BANANAS 2.3LB</span><span>1.36</span></div>
+            <div class="ln item" style="animation-delay:3.75s"><span>PAPER TOWELS 6PK</span><span>9.49</span></div>
+            <div class="ln item" style="animation-delay:4.2s"><span>SPARKLING WTR 12PK</span><span>5.99</span></div>
+            <hr>
+            <div class="ln"><span>SUBTOTAL</span><span>77.69</span></div>
+            <div class="ln"><span>TAX</span><span>0.95</span></div>
+            <div class="ln tot"><span>TOTAL</span><span>78.64</span></div>
+            <div class="thanks">THANK YOU</div>
+            <div class="beam"></div>
+          </div>
+        </div>
+        <div class="phone hero-phone">
+          <div class="screen"><img src="/site/img/screen-home.webp" alt="" width="660" height="1431" fetchpriority="high"></div>
+        </div>
+        <div class="chip c1"><i style="background:#60A5FA"></i>Whole milk <span class="u">1 gal</span> <span class="p">$4.29</span></div>
+        <div class="chip c2"><i style="background:#F28C6B"></i>Chicken breast <span class="u">$3.95/lb</span></div>
+        <div class="chip c3"><i style="background:#A3D45C"></i>Roma tomatoes <span class="u">2 lb</span> <span class="p">$3.12</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="langs" aria-label="Penny Roost speaks fourteen languages">
+    <span class="label">Speaks 14 languages</span>
+    <div class="track">
+    <div class="marquee">
+      <ul>
+        <li lang="en">English</li><li lang="es">Español</li><li lang="fr">Français</li><li lang="de">Deutsch</li><li lang="pt">Português</li><li lang="tr">Türkçe</li><li lang="id">Bahasa Indonesia</li><li lang="bn">বাংলা</li><li lang="hi">हिन्दी</li><li lang="ur" dir="rtl">اردو</li><li lang="ar" dir="rtl">العربية</li><li lang="fa" dir="rtl">فارسی</li><li lang="ps" dir="rtl">پښتو</li><li lang="zh">中文</li>
+      </ul>
+      <ul aria-hidden="true">
+        <li lang="en">English</li><li lang="es">Español</li><li lang="fr">Français</li><li lang="de">Deutsch</li><li lang="pt">Português</li><li lang="tr">Türkçe</li><li lang="id">Bahasa Indonesia</li><li lang="bn">বাংলা</li><li lang="hi">हिन्दी</li><li lang="ur" dir="rtl">اردو</li><li lang="ar" dir="rtl">العربية</li><li lang="fa" dir="rtl">فارسی</li><li lang="ps" dir="rtl">پښتو</li><li lang="zh">中文</li>
+      </ul>
+    </div>
+    </div>
+  </div>
+
+  <section class="section" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">How it works</span>
+        <h2 id="how-title">From the till to the right number, <em>in three steps.</em></h2>
+      </div>
+      <div class="steps">
+        <article class="step reveal">
+          <span class="num">01</span>
+          <h3>Snap the receipt</h3>
+          <p>Your phone reads the words itself for receipts in English, Spanish, French, German, Portuguese, Turkish and Indonesian. Others are read from the photo.</p>
+          <div class="mini" aria-hidden="true"><div class="mini-scan"><div class="doc"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+        </article>
+        <article class="step reveal">
+          <span class="num">02</span>
+          <h3>Check the lines</h3>
+          <p>Each line becomes an item with its size and unit price. Fix anything before it is saved. Nothing is added that you did not see.</p>
+          <div class="mini" aria-hidden="true">
+            <div class="mini-row"><i style="background:#60A5FA"></i><span>Greek yogurt<span class="sz">32 oz · $2.75/lb</span></span><span class="pr">5.49</span></div>
+            <div class="mini-row"><i style="background:#F28C6B"></i><span>Chicken breast<span class="sz">2.5 lb · $3.95/lb</span></span><span class="pr">9.87</span></div>
+          </div>
+        </article>
+        <article class="step reveal">
+          <span class="num">03</span>
+          <h3>Watch it add up</h3>
+          <p>Your budget, your history and your price comparisons update from that one scan. The longer you use it, the more it knows.</p>
+          <div class="mini" aria-hidden="true">
+            <div class="mini-ring">
+              <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="#2A313C" stroke-width="10"/><circle cx="50" cy="50" r="40" fill="none" stroke="#8D96A3" stroke-width="10" stroke-dasharray="110 251" transform="rotate(-90 50 50)"/><circle cx="50" cy="50" r="40" fill="none" stroke="#34D399" stroke-width="10" stroke-dasharray="49 251" stroke-dashoffset="-140" transform="rotate(-90 50 50)" stroke-linecap="round"/></svg>
+              <div><b>$1,320.46</b><span>left to spend · $188.64 a day</span><br><span class="pill">On track</span></div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title" style="padding-top:0">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Inside the app</span>
+        <h2 id="features-title">Built around the receipt, <em>not the bank feed.</em></h2>
+        <p class="lede">A bank knows where you shopped and how much you paid. Only the receipt knows what you bought. So that is where Penny Roost starts.</p>
+      </div>
+
+      <div class="showcase">
+        <div class="stage" aria-hidden="true">
+          <div class="phone">
+            <div class="screen">
+              <img data-screen="scan" class="on" src="/site/img/screen-scan.webp" alt="" width="660" height="1431" loading="lazy">
+              <img data-screen="insights" src="/site/img/screen-insights.webp" alt="" width="660" height="1431" loading="lazy">
+              <img data-screen="list" src="/site/img/screen-list.webp" alt="" width="660" height="1431" loading="lazy">
+              <img data-screen="home" src="/site/img/screen-home.webp" alt="" width="660" height="1431" loading="lazy">
+              <img data-screen="history" src="/site/img/screen-history.webp" alt="" width="660" height="1431" loading="lazy">
+            </div>
+          </div>
+        </div>
+
+        <div class="features">
+          <article class="feature" data-screen="scan">
+            <span class="kicker">Scan</span>
+            <h3>Every line, <em>not just the total.</em></h3>
+            <div class="phone inline-phone"><div class="screen"><img src="/site/img/screen-scan.webp" alt="A scanned receipt in Penny Roost: whole milk, Greek yogurt, chicken breast and Roma tomatoes, each with its size, unit price and price" width="660" height="1431" loading="lazy"></div></div>
+            <p>Point the camera at a receipt and Penny Roost turns it into items you can read: plain names, sizes, prices, and the unit price worked out for you. You look it over, then it is saved.</p>
+            <ul class="ticks">
+              <li>Unit prices like $3.95/lb, so a big pack and a small one compare fairly</li>
+              <li>Tax and the total you paid kept apart from the items</li>
+              <li>Anything it cannot read, you type in a few seconds</li>
+            </ul>
+          </article>
+
+          <article class="feature" data-screen="insights">
+            <span class="kicker">Price Watch</span>
+            <h3>Know where it is <em>cheaper.</em></h3>
+            <div class="phone inline-phone"><div class="screen"><img src="/site/img/screen-insights.webp" alt="Price Watch in Penny Roost: olive oil 22% cheaper at another store, and how much the difference has cost so far" width="660" height="1431" loading="lazy"></div></div>
+            <p>The same item, at the stores you actually shop, at the prices you actually paid. Penny Roost points out where something costs less and how much the difference has cost you so far.</p>
+            <div class="stat"><b>+3.3%</b><span>Your own basket inflation, from your own receipts. Not a national average.</span></div>
+          </article>
+
+          <article class="feature" data-screen="list">
+            <span class="kicker">Shopping list</span>
+            <h3>A list that knows <em>the store.</em></h3>
+            <div class="phone inline-phone"><div class="screen"><img src="/site/img/screen-list.webp" alt="The Penny Roost shopping list, grouped by store with an estimated total" width="660" height="1431" loading="lazy"></div></div>
+            <p>Your list sorts itself by store and estimates the total from what you usually pay. When something you buy often is due again, it asks whether you are running low.</p>
+            <ul class="ticks">
+              <li>Add items by typing or by scanning a barcode</li>
+              <li>Tick things off in the aisle, clear them in one tap</li>
+              <li>Share it with your household</li>
+            </ul>
+          </article>
+
+          <article class="feature" data-screen="home">
+            <span class="kicker">Budget</span>
+            <h3>A budget that knows <em>what day it is.</em></h3>
+            <div class="phone inline-phone"><div class="screen"><img src="/site/img/screen-home.webp" alt="The Penny Roost home screen: a monthly budget ring with the amount left to spend and a daily allowance" width="660" height="1431" loading="lazy"></div></div>
+            <p>Set a monthly budget and the ring shows what is left to spend and what that means per day. Rent and bills post themselves on their due date, so fixed costs are counted before you spend.</p>
+            <ul class="ticks">
+              <li>On track or ahead, said in one line</li>
+              <li>Limits per category that warn and never block</li>
+              <li>Bills and subscriptions added for you every month</li>
+            </ul>
+          </article>
+
+          <article class="feature" data-screen="history">
+            <span class="kicker">History</span>
+            <h3>See where <em>the month went.</em></h3>
+            <div class="phone inline-phone"><div class="screen"><img src="/site/img/screen-history.webp" alt="Penny Roost history: a month of spending by category, compared with the same point last month" width="660" height="1431" loading="lazy"></div></div>
+            <p>Week, month or year, by category or by store, compared with the same point last month. Tap a category to see the receipts behind it.</p>
+            <ul class="ticks">
+              <li>Step back through past months</li>
+              <li>Export a backup, or a spreadsheet with one row per item</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="more-title" style="padding-top:0">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">And also</span>
+        <h2 id="more-title">The small things <em>that save the most time.</em></h2>
+      </div>
+      <div class="more">
+        <article class="tile reveal">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></svg></span>
+          <h4>Paid by card? Screenshot it.</h4>
+          <p>A screenshot of your Apple Wallet or bank app becomes one expense per payment, each under its own store.</p>
+        </article>
+        <article class="tile reveal">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          <h4>One household, one budget</h4>
+          <p>Share a list and a budget with up to six people. Only what you mark as shared leaves your phone.</p>
+        </article>
+        <article class="tile reveal">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h12"/><path d="M19 16l2 2-2 2"/></svg></span>
+          <h4>Your language, either direction</h4>
+          <p>Fourteen languages, including Urdu, Arabic, Farsi and Pashto, written right to left as they should be.</p>
+        </article>
+        <article class="tile reveal">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2l20 20"/><path d="M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5.17-2.8M19 13a10 10 0 0 0-2.1-1.6M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8a15 15 0 0 0-11.3-3.7M12 20h.01"/></svg></span>
+          <h4>Works without a signal</h4>
+          <p>Typing, budgets, the list, history and Price Watch all work offline. No account needed to start.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section paper" id="privacy" aria-labelledby="privacy-title">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Privacy</span>
+        <h2 id="privacy-title">Your money stays <em>your business.</em></h2>
+        <p class="lede">Your expenses live on your phone. No ads, no selling your data, no tracking you across other apps.</p>
+      </div>
+      <div class="promises">
+        <article class="promise reveal">
+          <span class="n">01</span>
+          <h4>Asked before the first scan</h4>
+          <p>Receipts are read with AI, and Penny Roost asks before anything is sent. Say no and everything else still works.</p>
+        </article>
+        <article class="promise reveal">
+          <span class="n">02</span>
+          <h4>Only the receipt is read</h4>
+          <p>When your phone can read the words, only the text is sent. Otherwise the photo is sent, read, and not kept. Your totals, budgets and history are never sent to the AI.</p>
+        </article>
+        <article class="promise reveal">
+          <span class="n">03</span>
+          <h4>Shared on purpose</h4>
+          <p>In a household, only the expenses and lists you mark as shared are synced. Everything else stays on your phone.</p>
+        </article>
+      </div>
+      <p style="margin-top:34px"><a class="textlink" href="/privacy.html">Read the privacy policy <span aria-hidden="true">→</span></a></p>
+    </div>
+  </section>
+
+  <section class="section" id="prices" aria-labelledby="prices-title">
+    <div class="wrap">
+      <div class="section-head center reveal">
+        <span class="kicker">Prices</span>
+        <h2 id="prices-title">Free for one. <em>A subscription to share.</em></h2>
+        <p class="lede">Everything you need to track your own spending is free and stays free.</p>
+      </div>
+      <div class="plans">
+        <article class="plan reveal">
+          <span class="name">Free</span>
+          <div class="price"><b>$0</b><span>forever</span></div>
+          <ul>
+            <li>15 receipt scans a month</li>
+            <li>Unlimited typing and receipt photos</li>
+            <li>Budgets, category limits and bills</li>
+            <li>Shopping list and restock reminders</li>
+            <li>History, export and your basket inflation</li>
+            <li>Join someone else's household, free</li>
+          </ul>
+        </article>
+        <article class="plan featured reveal">
+          <span class="name">Subscription</span>
+          <div class="toggle" role="group" aria-label="Billing period">
+            <button type="button" data-period="month" aria-pressed="true">Monthly</button>
+            <button type="button" data-period="year" aria-pressed="false">Yearly</button>
+          </div>
+          <div class="price monthly"><b>$4.99</b><span>a month</span></div>
+          <div class="price yearly"><b>$49.99</b><span>a year · two months free</span></div>
+          <span class="note">First month free</span>
+          <ul>
+            <li>200 receipt scans a month</li>
+            <li>Start a household for up to six people</li>
+            <li>A shared list that updates live at the store</li>
+            <li>Every Price Watch comparison</li>
+          </ul>
+        </article>
+      </div>
+      <div class="topup reveal"><span><b>Run out of scans?</b> A top-up adds 100 scans for $1.99. They never expire.</span><span>Billed by Apple. Cancel any time in your iPhone settings.</span></div>
+      <p class="fine">Prices in US dollars. Other countries see their local price in the App Store.</p>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="faq-title" style="padding-top:0">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Questions</span>
+        <h2 id="faq-title">Good to know.</h2>
+      </div>
+      <div class="faq">
+        <details><summary>Does it work without internet?</summary><p>Yes. Typing expenses, budgets, the shopping list, history and Price Watch all work offline. Scanning a receipt and sharing with your household need a connection.</p></details>
+        <details><summary>Do I need an account?</summary><p>No. Everything works without signing in. An account is only needed to share a household.</p></details>
+        <details><summary>What happens to my receipt photos?</summary><p>They are saved on your phone so you can look at the original later. They are never synced and never in backups or exports, and a photo sent to be read is not kept.</p></details>
+        <details><summary>Which receipts can it read?</summary><p>Most printed shop receipts, and screenshots of card payments. Receipts in English, Spanish, French, German, Portuguese, Turkish and Indonesian are read on your phone; others are read from the photo.</p></details>
+        <details><summary>Can my family use it together?</summary><p>Yes. One person starts a household with the subscription and invites others with a link or a QR code. Joining is free.</p></details>
+        <details><summary>How do I cancel the subscription?</summary><p>On your iPhone, open Settings, tap your name, then Subscriptions, and choose Penny Roost. Apple handles the billing.</p></details>
+        <details><summary>Can I get my data out?</summary><p>Yes. Export a backup file to restore on another phone, or a spreadsheet with one row per item.</p></details>
+        <details><summary>Is there an Android version?</summary><p>Not yet. Penny Roost is on iPhone first.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="closing" aria-labelledby="closing-title">
+    <div class="wrap">
+      <img class="mark" src="/site/img/mark.webp" alt="" width="561" height="459" loading="lazy">
+      <h2 id="closing-title">Start with your <em>next receipt.</em></h2>
+      <p class="lede" style="margin-inline:auto">Free to download, and free to keep using for your own spending.</p>
+      <a class="btn btn-copper" href="https://apps.apple.com/app/id6819345454">
+        Download on the App Store
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+  </section>
+
 </main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="/" aria-label="Penny Roost home"><img src="/site/img/icon-128.png" alt="" width="36" height="36"><span class="wordmark"><b>Penny</b> Roost</span></a>
+      <p class="tag">Receipts, groceries and budget in one app. Made by InfraSpatial Solutions LLC.</p>
+    </div>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="/support.html">Support</a>
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="/terms.html">Terms of Use</a>
+      <a href="mailto:support@pennyroost.com">support@pennyroost.com</a>
+    </nav>
+    <div class="legal"><span>© 2026 InfraSpatial Solutions LLC</span><span>Apple, iPhone and App Store are trademarks of Apple Inc.</span></div>
+  </div>
+</footer>
+
+<script src="/site/js/site.js" defer></script>
 </body>
 </html>
