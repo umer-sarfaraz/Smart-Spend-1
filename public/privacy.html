@@ -37,7 +37,7 @@ footer a{color:var(--muted);text-decoration:underline}
 <body>
 <main>
 <h1>Privacy Policy</h1>
-<p><strong>Last updated: 27 September 2026</strong></p>
+<p><strong>Last updated: 9 October 2026</strong></p>
 <hr />
 <h2>The short version</h2>
 <p>Your expenses live <strong>on your phone</strong>. We can't see them.</p>
@@ -49,6 +49,8 @@ to Google to be sorted into items and prices. When the phone cannot read it, the
 same way. None of it is stored anywhere afterwards, and <strong>the app asks your
 permission before any of it ever leaves your phone</strong> — you can say no and keep
 using everything else.</p>
+<p><strong>Penny Roost Pro</strong> and the packs of extra scans are sold <strong>by Apple</strong>. Your card
+never reaches us: Apple only tells us which plan you bought and until when.</p>
 <p>We don't sell your data. We don't run ads. We don't track you across other apps.</p>
 <hr />
 <h2>What we collect, and why</h2>
@@ -87,7 +89,7 @@ much space they use, and delete them, at <strong>Settings → Scanning &amp; dat
 </tr>
 <tr>
 <td><strong>The name you enter</strong></td>
-<td>So the other people in your household see a name beside a shared expense instead of an anonymous row. You choose it when you sign up, you can change it at any time at <strong>Settings → Family → Your name</strong>, and the only people who ever see it are the members of a household you joined</td>
+<td>So the other people in your household see a name beside a shared expense instead of an anonymous row. You choose it when you sign up, you can change it at any time at <strong>Settings → Account → Name</strong>, and the only people who ever see it are the members of a household you joined</td>
 </tr>
 <tr>
 <td>Household membership, role and permissions</td>
@@ -191,17 +193,54 @@ food database, to look up the product name.</p>
 </ul>
 <p>Barcode scanning is optional. Typing an item name never touches the network —
 suggestions come from your own history and a list built into the app.</p>
-<h3>Help clips</h3>
-<p>The step-by-step guides in <strong>Settings → How it works</strong> are short animations kept
-on our website rather than inside the app, so the app stays small. The first time
-you play one it downloads and is then cached on your phone; after that it plays
-offline and sends nothing.</p>
+<h3>Subscriptions and purchases</h3>
+<p><strong>Penny Roost Pro</strong>, and the packs of extra scans, are sold <strong>by Apple</strong>, on
+Apple's own sheet. We never see your card.</p>
 <ul>
-<li>The request asks for a clip by name. It carries no account, no expense data and
-  no device identifier.</li>
-<li>Like any web server, ours records the ordinary request details — an IP address
-  and a timestamp. We do not connect those to your account or to anything in your
-  ledger, and we do not use them for analytics.</li>
+<li>Your card, your Apple Account and your billing address go to <strong>Apple</strong>. They
+    never reach us: we cannot read them, and we cannot charge you.</li>
+<li>Apple tells us <strong>what was bought and until when</strong> — which plan, whether
+    auto-renew is on, the date it renews or ends, and the scans a pack added.</li>
+<li><strong>RevenueCat</strong> keeps that purchase history for us. It is filed under your
+    account id and nothing else: no name, no email address and no expense of yours
+    ever reaches them. With no account it is filed under an id made up for your
+    phone, and Pro still works.</li>
+<li>The same answer is stored against your account <strong>on our server</strong>, so Pro works
+    on your other phone and so a household can share it.</li>
+<li><strong>Restore purchases</strong> asks Apple the same question again and sends nothing new.</li>
+<li>Prices, refunds, and turning auto-renew off or back on are Apple's: the app's
+    <strong>Cancel or change plan</strong> row opens Apple's page, and the app is told the
+    answer afterwards.</li>
+<li>RevenueCat's privacy policy: https://www.revenuecat.com/privacy</li>
+</ul>
+<p>The free plan needs no purchase and no account, and nothing above happens until
+you buy something.</p>
+<h3>How-to videos</h3>
+<p>The eight short videos in <strong>Settings → Help &amp; feedback → Videos</strong> are on
+<strong>YouTube</strong>, on the Penny Roost channel. Tapping one opens YouTube's page in the
+system browser sheet, on top of the app, with <strong>Done</strong> to come back.</p>
+<ul>
+<li>Watching happens on YouTube, so YouTube — and Google — see that visit, the
+    way they would if you opened the same page yourself. Google's privacy policy
+    covers it: https://policies.google.com/privacy</li>
+<li>We send <strong>nothing</strong> with the tap: no account, no expense data, no device
+    identifier. We are not told which video you watched, or whether you watched it.</li>
+<li>The videos are optional, and the app never plays one by itself.</li>
+</ul>
+<h3>Sending us feedback</h3>
+<p><strong>Settings → Help &amp; feedback → Send feedback</strong> is a form. Nothing goes
+anywhere until you press send.</p>
+<ul>
+<li>What is sent: your message, a reply address <strong>only if you type one</strong>, any
+    screenshots you attach, and the app's version, your language and your phone's
+    operating system, so that a report can be reproduced. No account id, no name,
+    no expense data.</li>
+<li>It travels through our server and is delivered as an email by <strong>Brevo</strong>, our
+    email provider, to support@pennyroost.com. We keep the message as long as we
+    need it to answer you.</li>
+<li>Sign-in links and household invites are sent the same way, by Brevo.</li>
+<li>You can write to support@pennyroost.com yourself instead; the screen offers
+    that door too.</li>
 </ul>
 <h3>What we never collect</h3>
 <ul>
@@ -220,13 +259,19 @@ offline and sends nothing.</p>
 <li>Our infrastructure providers, who process data on our behalf:</li>
 <li><strong>Supabase</strong> — database and accounts, if you create one</li>
 <li><strong>Vercel</strong> — our server: it relays receipt text (or the photo) and Ask
-    sentences on their way to Google, and hosts the help clips</li>
+    sentences on their way to Google, and passes your feedback to our email
+    provider</li>
 <li><strong>Google</strong> — sorts the receipt into items and prices, and works out what an
     Ask sentence means. Their handling is governed by their own terms:
-    https://ai.google.dev/gemini-api/terms</li>
+    https://ai.google.dev/gemini-api/terms. <strong>YouTube</strong>, also Google's, serves
+    the how-to videos when you open one</li>
+<li><strong>Apple</strong> — sells the subscriptions and the scan packs, and holds the
+    payment details we never see</li>
+<li><strong>RevenueCat</strong> — records what was bought, under your account id and nothing
+    else: https://www.revenuecat.com/privacy</li>
+<li><strong>Brevo</strong> — sends our email: sign-in links, household invites, and the
+    feedback you send from inside the app</li>
 <li><strong>Open Food Facts</strong> — receives a barcode number when you scan one, nothing else</li>
-<li><strong>Stripe</strong> — payments. Not active in this version: nothing is for sale, so
-    no payment data exists yet. Listed here because it applies the moment it is.</li>
 </ul>
 <p>We do not sell your data. We do not share it for advertising. We have never
 received a government request for user data; if that changes, we will say so here.</p>
